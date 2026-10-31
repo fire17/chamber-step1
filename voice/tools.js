@@ -1,17 +1,17 @@
-// Voice tools: the allowlist + argument validation for model tool calls. Pure ESM (no DOM), shared by the
-// browser session (step2/voice/session.js) AND the relay (voice/server/server.mjs), so both enforce the same rules.
-//
-// Tool calls are UNTRUSTED input. Only these map onto verbs (DYNAMIC_LAYER.md §4 + conductor phase.set):
-//   map_create -> 'map.create'   map_update -> 'map.update'   map_remove -> 'map.remove'   undo -> 'undo'
-//   switch_phase {phase, why} -> 'phase.set' {name, why} (legacy {to} accepted, deprecated): the Director's SEMANTIC judgement that a phase is used up
-//   (observer/voices session-20261031-1717-semantic-gates). No timer/turn-count exit exists anywhere.
-//   end_session {why} -> 'session.end': the Director judges the person done (integration). The SERVER owns it: it answers
-//     the call and asks for one closing act, then stops gracefully (never a hard kill). See FLOW.closing.
-//   sound_steer {steps:[{to, seconds}], why?} -> 'sound.steer': a short arc over sound/space.js anchors (FLOW.steer).
-//   show_image {subject, why?} -> 'image.show': STUB act (schema + server trace event); the rendering side comes later.
-// sound_steer and show_image are offered only when the server enables them (SOUND_STEER=1 / SHOW_IMAGE=1).
-// Anything else is refused. Per response, at most MAX_TOOL_CALLS (= MAX_DIRECT_TOOL_CALLS 4, DYNAMIC_LAYER §4 Caps).
-// The conductor's own verb validation stays the final authority; this is the gate in front of it.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 import { FLOW } from './flow.js';
 
@@ -20,12 +20,12 @@ export const MAX_TOOL_CALLS = 4;
 export const TOOL_VERBS = Object.freeze({ map_create: 'map.create', map_update: 'map.update', map_remove: 'map.remove', undo: 'undo', switch_phase: 'phase.set',
   end_session: 'session.end', sound_steer: 'sound.steer', show_image: 'image.show' });
 
-// Copied from step2/sound/space.js ANCHORS (names only; a test keeps them equal). The Director's sound vocabulary.
+
 export const STEER_ANCHORS = Object.freeze(['chamber', 'temple', 'spiritual', 'emotional', 'astral', 'kinetic', 'club', 'acid', 'trance']);
 
-// Static fallback registry (used by the server, which has no DOM/layer). `safe` is copied from step2/registry.js SAFE.
-// In the browser pass registryFromDescribe(__chamber.describe()) instead: the LIVE layer's registry, same shape.
-// This is the coarse gate in FRONT of the conductor; layer.js (mapError) stays the final authority.
+
+
+
 const SAFE = { cutoff: [40, 12000], detune: [0, 60], shimmer: [0, 0.4], pan: [-1, 1], swell: [0, 1], reverbWet: [0, 1], octave: [0, 0.6],
   trip: [0, 1], feedback: [0, 0.85], field: [-1, 1], resonance: [0.1, 20], wah: [80, 8000], wahDepth: [0, 18], floor: [0, 0.5],
   vibrato: [0, 60], tremolo: [0, 1], modRate: [0.1, 12], beat: [0, 1] };
@@ -37,7 +37,7 @@ export const STATIC_REGISTRY = Object.freeze({
     ...['jawOpen', 'smile', 'squint', 'blink', 'browUp', 'pucker', 'cheekPuff', 'lookX', 'lookY'].map((k) => `face.${k}`),
   ],
   curves: ['lin', 'exp', 'log', 's', 'pow', 'invert', 'deadzone'],
-  phases: ['orientation', 'enactment', 'integration'], // mappings.js PHASES
+  phases: ['orientation', 'enactment', 'integration'], 
   anchors: STEER_ANCHORS,
 });
 
@@ -75,7 +75,7 @@ function checkFields(a, reg, { partial }) {
   if (!partial || a.kind != null) if (!['static', 'binding'].includes(a.kind)) return "kind must be 'static' or 'binding'";
   if (!partial || a.src != null) { const e = checkSrc(a.src, reg); if (e) return e; }
   let tgt = null;
-  const tid = a.kind === 'static' ? (a.target ?? a.id) : a.target; // a static mapping's id IS its target (layer.js)
+  const tid = a.kind === 'static' ? (a.target ?? a.id) : a.target; 
   if (!partial || tid != null) { tgt = reg.targets[tid]; if (!tgt) return `unknown target '${String(tid).slice(0, 40)}'`; }
   if (!partial || a.range != null) {
     if (!Array.isArray(a.range) || a.range.length !== 2 || !a.range.every(fin)) return 'range must be [n, n]';
@@ -89,7 +89,7 @@ function checkFields(a, reg, { partial }) {
   return null;
 }
 
-// Convert layer.describe() (schema chamber.mapping/1) into the shape above. Only bindable sources are offered to the model.
+
 export function registryFromDescribe(d) {
   if (!d || !Array.isArray(d.targets) || !Array.isArray(d.sources)) return STATIC_REGISTRY;
   return Object.freeze({
@@ -101,7 +101,7 @@ export function registryFromDescribe(d) {
   });
 }
 
-// validateToolCall(name, argsJson, registry?) -> { ok:true, verb, args } | { ok:false, why }
+
 let warnedLegacyTo = false;
 export function validateToolCall(name, argsJson, registry = STATIC_REGISTRY) {
   if (!Object.prototype.hasOwnProperty.call(TOOL_VERBS, name)) return bad(`tool '${String(name).slice(0, 40)}' is not allowed`);
@@ -111,7 +111,7 @@ export function validateToolCall(name, argsJson, registry = STATIC_REGISTRY) {
   if (JSON.stringify(a).length > 2000) return bad('arguments too large');
   const verb = TOOL_VERBS[name];
   if (name === 'switch_phase') {
-    // Wire schema is {phase, why} (srv2 POST <Location>/phase). Legacy {to} is still accepted, with a one-time deprecation log.
+    
     for (const k of Object.keys(a)) if (k !== 'phase' && k !== 'to' && k !== 'why') return bad(`unknown field '${k.slice(0, 20)}'`);
     if ('phase' in a && 'to' in a) return bad('give phase, not both phase and to');
     if ('to' in a && !warnedLegacyTo) { warnedLegacyTo = true; console.warn('switch_phase {to} is deprecated: use {phase, why}'); }
@@ -160,8 +160,8 @@ export function validateToolCall(name, argsJson, registry = STATIC_REGISTRY) {
   return e ? bad(e) : { ok: true, verb, args: a };
 }
 
-// Realtime function tool definitions ( {type:'function', name, description, parameters}).
-// The RELAY pins these in its session.update; the browser can never set tools.
+
+
 export function toolDefs(registry = STATIC_REGISTRY) {
   const targets = Object.keys(registry.targets), sources = registry.sources, curves = registry.curves;
   const fields = {

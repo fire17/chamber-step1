@@ -1,10 +1,10 @@
-// Dev-only call-trace panel (dev/test only). realtime.js loads it ONLY on the dev route (#dev / ?dev=1) or ?debug=1;
-// the player view never requests this file, so it stays wordless. It shows the voice call trace (transport.js
-// createTrace: states, fetch paths + statuses, every close/stop/hangup with its stage and why; never a ticket, key,
-// header, SDP body or password) and a wordless copy button (a glyph) that puts the whole trace on the clipboard as JSON lines.
-// The panel's own chrome is WORDLESS (a count, a copy glyph, a check/cross): ?debug=1 also works on the player route, and the
-// player view carries no words. Only the trace lines themselves (states, paths, whys) are text, and only on these routes.
-// Styling is set through the CSSOM (element.style), which the 'self'-only CSP allows; no inline <style>, no remote URL.
+
+
+
+
+
+
+
 export function mountTracePanel({ trace, doc = globalThis.document, max = 12 } = {}) {
   if (!trace || !doc?.body) return null;
   const old = doc.getElementById('voice-trace'); if (old) old.remove();
@@ -27,7 +27,7 @@ export function mountTracePanel({ trace, doc = globalThis.document, max = 12 } =
     const text = trace.text();
     let ok = false;
     try { await globalThis.navigator?.clipboard?.writeText(text); ok = true; } catch {}
-    if (!ok) { // fallback: a hidden textarea + execCommand (older browsers, no clipboard permission)
+    if (!ok) { 
       try { const ta = doc.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; doc.body.append(ta); ta.select(); ok = doc.execCommand?.('copy') === true; ta.remove(); } catch {}
     }
     box.dataset.copied = ok ? String(text.length) : 'failed';

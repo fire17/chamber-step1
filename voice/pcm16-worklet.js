@@ -1,8 +1,8 @@
-// AudioWorklet: mic Float32 at the context rate -> PCM16 mono at 24 kHz, posted in ~100 ms chunks (relay path only;
-// the WebRTC path sends the mic track itself). Linear-interpolation resampler; good enough for speech.
-// One source, two ways in: (1) as a worklet module file (dev page: realtime.js passes this file's URL); (2) bundled into
-// the deployed app, which is booted from a blob: there is no file URL, so realtime.js builds a blob module from
-// definePcm16Worklet.toString() (gate page CSP script-src carries blob:). The function references only worklet globals.
+
+
+
+
+
 export function definePcm16Worklet() {
   class Pcm16Out extends AudioWorkletProcessor {
     constructor() { super(); this.ratio = sampleRate / 24000; this.pos = 0; this.buf = new Int16Array(2400); this.n = 0; this.prev = 0; }

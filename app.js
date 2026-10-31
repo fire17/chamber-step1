@@ -1,10 +1,10 @@
-// Chamber Next Gen — Step 2: the walking skeleton.
-//   senses (camera -> hand.js / body.js) ──▶ bus.state.sense ──▶ body story (observations, ids)
-//                                               │                      │ obs.open wakes
-//   static mappings (whole body, always live) ◀─┤                      ▼
-//   bindings (life.js, data) ◀── verbs ◀── conductor (one scheduler: cues · dj · readiness policies)
-//   pad (synth.js) + beat (beat.js) ◀── targets          │ say ──▶ captions (the Mouth in Step 3)
-// The player screen is wordless except the opening's brief captions. The console (d / #dev) is developer-only.
+
+
+
+
+
+
+
 import {
   MAPPINGS, POOL, PHASES, PROGRESSION, VOICINGS, VISION, ENERGY, PRESENCE_HOLD_MS, BODY_HOLD_MS,
   computeTargets, readBlend, readSource, srcNames,
@@ -21,20 +21,20 @@ import { SOURCES, TARGETS, TARGET } from './registry.js';
 import { CURVES, curveName, curvePos } from './curves.js';
 import { Pad } from './synth.js';
 
-// Everything is served from ./vendor (same origin). There is NO CDN fallback by design (CSP in index.html,
-// telemetry patched out of the vendored bundle: vendor/VERSIONS.md). Nothing leaves the machine.
+
+
 const VENDOR = new URL('./vendor/', location.href).href;
 const params = new URLSearchParams(location.search);
 const FORCE_CPU = params.get('delegate') === 'cpu';
-const NO_HANDS = params.get('hands') === '0'; // run on the whole body alone (pose only)
-const NO_FACE = params.get('face') === '0'; // face layer off (optional, like hands)
-// face delegate: CPU by default (on a weak GPU the face model ran 4.5x slower on GPU than CPU: FACE_INTEGRATION.md)
+const NO_HANDS = params.get('hands') === '0'; 
+const NO_FACE = params.get('face') === '0'; 
+
 const FACE_DELEGATE = (params.get('faceDelegate') || 'cpu').toUpperCase();
 const FACE_HOLD_MS = 400;
-// WHO is at the screen decides the boot. The dev route (#dev / ?dev=1, dev/test only) boots PAUSED, as old Chamber did (PLAN §4
-// Step 2, the console: "pause / resume (it boots paused, as old Chamber did)"): the person can be framed first, then
-// space resumes. The PLAYER route (the deployed link, no #dev) does not hold: the one start gesture also starts the room.
-// (Goni 3EB06DD1/3EB06CD4: on the player route the paused boot read as "no sound" until he pressed space.)
+
+
+
+
 const DEV_ROUTE = location.hash === '#dev' || params.get('dev') === '1';
 
 const $ = (id) => document.getElementById(id);
@@ -42,7 +42,7 @@ const video = $('video'), canvas = $('overlay'), ctx2d = canvas.getContext('2d')
 
 const S = {
   phase: 'idle', error: null, delegate: null, poseDelegate: null, handsError: null, faceError: null, faceDelegate: null,
-  paused: true, // the room BOOTS PAUSED on the dev route: space / the console resumes it
+  paused: true, 
   dev: false, timeScale: Math.max(0.01, +params.get('timescale') || 1),
   hands: { A: { present: false }, B: { present: false } }, body: { present: false }, face: { present: false },
   lastSeen: { A: 0, B: 0, body: 0, face: 0 }, lastFeat: { A: null, B: null }, bodyFeat: null,
@@ -50,41 +50,41 @@ const S = {
   inject: null, injectPose: null, landmarks: [], pose: null, aIndex: -1,
   perf: { tickFps: VISION.fps, hands: { fps: 0, ms: 0, n: 0 }, pose: { fps: 0, ms: 0, n: 0 }, face: { fps: 0, ms: 0, n: 0 }, tickMs: 0 },
   aura: { x: 0.5, y: 0.55, r: 0.32, a: 0.11, seen: false },
-  caption: null, captions: [], // what the player was shown (verification + console)
+  caption: null, captions: [], 
 };
 let pad = null, audioCtx = null, hands = null, pose = null, face = null;
-let voiceOut = null; // the voice output node (H3 duck key), set by mountVoice's onOutput
+let voiceOut = null; 
 
-// ---------------- the skeleton: one bus, one story, one conductor ----------------
+
 const bus = new Bus();
 const bindings = new Bindings(POOL), prog = new Progression(), bodyT = new BodyTracker(), energy = new EnergyMeter(), faceT = new FaceTracker();
 const story = new BodyStory(bus);
-// the dynamic layer (layer.js): the live static mappings + the bindings, edited only through map.* verbs
+
 const layer = new MappingLayer({ bindings });
 const conductor = makeConductor({
   bus, bindings, story, layer,
   sensors: {
-    stimulusRms: () => pad?.chimeRms() ?? 0,                               // the stimulus' own tap
-    source: (d) => (S.inp ? readBlend(S.inp, d.src, d.mag) : null),       // what the body is doing
-    param: (target) => pad?.live()[target],                                // what the audio graph is doing
-    sound: () => {                                                         // per-turn snapshot for the trace
+    stimulusRms: () => pad?.chimeRms() ?? 0,                               
+    source: (d) => (S.inp ? readBlend(S.inp, d.src, d.mag) : null),       
+    param: (target) => pad?.live()[target],                                
+    sound: () => {                                                         
       const l = pad?.live(); if (!l) return null;
       const r = (v) => +(+v).toFixed(3);
       return { cutoff: Math.round(l.cutoff), swell: r(l.swell), pan: r(l.pan), voicing: S.zone, notes: l.notes?.join(' '), detune: r(l.detune), reverbWet: r(l.reverbWet), vibrato: r(l.vibrato), tremolo: r(l.tremolo),
-        rms: +(pad?.rms() ?? 0).toFixed(4),                                // measured loudness (judge/HOOK.md H4), not a target
+        rms: +(pad?.rms() ?? 0).toFixed(4),                                
         hands: (S.hands.A.present ? 1 : 0) + (S.hands.B.present ? 1 : 0), body: S.body.present };
     },
   },
 });
-Object.assign(bus.state, { bindings, story, prog }); // every part reads the same live objects
-// the effectful verbs live where the effect lives (audio here). The conductor, the console and Step 3's mind call them.
+Object.assign(bus.state, { bindings, story, prog }); 
+
 conductor.register('stimulus', ({ what = 'chime', midi, level }) => {
   if (what !== 'chime') return { ok: false, why: `no stimulus '${what}'` };
   if (!pad) return { ok: false, why: 'no audio yet' };
   const at = pad.chime({ midi, level });
   return { ok: true, what, at: +at.toFixed(3) };
 });
-// `say` stays the conductor's core verb (publish on the bus); captions are ONE subscriber (Step 3 adds the Mouth)
+
 bus.on('say', ({ text, en, show = 3.5, cue }) => {
   S.caption = { text, en, cue, until: bus.state.runT + show };
   S.captions.push({ t: +bus.state.t.toFixed(2), cue, text, en });
@@ -92,17 +92,17 @@ bus.on('say', ({ text, en, show = 3.5, cue }) => {
   el.textContent = text; el.title = en || '';
   el.classList.add('on');
 });
-bus.on('say', (ev) => pad?.duckSay(ev)); // duck under speech (sound/HOOK.md H3): the BACKSTOP key; spoken Director lines only
-bus.on('phase', (ph) => pad?.phase(ph)); // sound/HOOK.md H4+H6: ONE entry: transition swell + phase lean on v; boot sets the reference only
+bus.on('say', (ev) => pad?.duckSay(ev)); 
+bus.on('phase', (ph) => pad?.phase(ph)); 
 
-// the aura (visual/AURA-HOOK.md): on by default; ?aura=0 turns it off. It only reads the bus (and the video size).
-// Layout through the CSSOM (CSP style-src 'self' allows it; the canvas has no style attribute): over the video, screen-blended.
+
+
 let aura = null;
 if (params.get('aura') !== '0') {
   const el = $('aura');
   if (el) Object.assign(el.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none', mixBlendMode: 'screen' });
-  // The aura learns pause only from bus 'pause' emits, and the room boots paused without one: this view seeds its
-  // pause state at subscription (no global emit, so other 'pause' listeners see nothing new).
+  
+  
   const auraBus = {
     get state() { return bus.state; },
     on(name, fn) { const off = bus.on(name, fn); if (name === 'pause') fn({ paused: S.paused }); return off; },
@@ -111,11 +111,11 @@ if (params.get('aura') !== '0') {
     .then(({ createAura }) => {
       if (!el) return;
       aura = createAura(el, { bus: auraBus, video });
-      if (S.phase !== 'running') aura.stop(); // no GPU behind the splash: start() runs it once the room is running
+      if (S.phase !== 'running') aura.stop(); 
     })
     .catch((e) => console.warn('[aura] off:', e?.message || e));
 } else $('aura')?.remove();
-// renderer failing every frame (aura.js only counts it) -> stop it, hide it, and let the Canvas2D halo take over
+
 let auraCheckT = 0;
 function auraLive(now) {
   if (!aura || aura.kind === 'none') return false;
@@ -130,7 +130,7 @@ function auraLive(now) {
   return true;
 }
 
-// ---------------- errors (the only place with explanatory text besides captions) ----------------
+
 const ERR = {
   denied:   ['הגישה למצלמה נחסמה. אשרו גישה למצלמה בדפדפן ונסו שוב.', 'Camera permission denied. Allow camera access in the browser, then retry.'],
   nocam:    ['לא נמצאה מצלמה.', 'No camera found. Connect a webcam, then retry.'],
@@ -147,13 +147,13 @@ function showError(kind, detail) {
   $('err-detail').textContent = S.error.detail;
   $('splash').hidden = true;
   $('error').hidden = false;
-  console.warn('[chamber]', kind, detail); // warn, not error: these are handled states
+  console.warn('[chamber]', kind, detail); 
 }
 $('retry').onclick = () => location.reload();
 
-// ---------------- models: POSE is the instrument (required); HANDS are an optional additive layer ----------------
-// Both load in PARALLEL. If pose fails, that is the real error and the player is told. If hands fail (or ?hands=0),
-// the room plays on the whole body alone and the dev console shows the note; the player sees nothing.
+
+
+
 async function createTask(Cls, fileset, opts) {
   if (!FORCE_CPU) {
     try { return [await Cls.createFromOptions(fileset, opts('GPU')), 'GPU']; }
@@ -181,13 +181,13 @@ async function loadModels() {
   else { S.faceError = String(fr.reason?.message || fr.reason); console.info(`[chamber] face OFF (${S.faceError})`); }
   if (hr.status === 'fulfilled') [hands, S.delegate] = hr.value;
   else { S.handsError = String(hr.reason?.message || hr.reason); console.info('[chamber] hands layer off; the body alone plays:', S.handsError); }
-  if (pr.status === 'rejected') throw pr.reason; // the body is the instrument: no pose, no room
+  if (pr.status === 'rejected') throw pr.reason; 
   [pose, S.poseDelegate] = pr.value;
 }
 const modelReady = loadModels();
-modelReady.catch(() => {}); // surfaced on Start
+modelReady.catch(() => {}); 
 
-// ---------------- camera ----------------
+
 async function startCamera() {
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error('insecure'), { kind: 'insecure' });
   let stream;
@@ -203,37 +203,37 @@ async function startCamera() {
   await video.play();
 }
 
-// ---------------- start: one gesture unlocks audio; the player's room then plays, the dev route's waits PAUSED ----------------
+
 let starting = false;
 async function start() {
   if (starting) return; starting = true;
   $('start').disabled = true; $('splash').classList.add('waking');
   try {
-    // created AND resumed synchronously inside the gesture (before any await): WebKit / iOS only unlock audio here
-    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {} // Safari Audio Session API: WebAudio plays past the iOS silent switch (no-op elsewhere)
+    
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {} 
     audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
     audioCtx.onstatechange = syncResumeCue;
     await audioCtx.resume();
     pad = new Pad(audioCtx, voiceLead(null, prog.chord, S.zone));
-    if (voiceOut) pad.voiceKey(voiceOut); // the voice started before the pad: key the duck on its output now (H3)
-    pad.phase({ name: bus.state.phase?.name, by: 'boot' }); // H4: seed the swell reference (the pad is born after the boot phase event)
-    if (DEV_ROUTE) await audioCtx.suspend(); // the dev route holds: boots paused. The player's context stays running
+    if (voiceOut) pad.voiceKey(voiceOut); 
+    pad.phase({ name: bus.state.phase?.name, by: 'boot' }); 
+    if (DEV_ROUTE) await audioCtx.suspend(); 
   } catch (e) { return showError('audio', e?.message || e); }
   S.phase = 'starting';
   try { await startCamera(); } catch (e) { return showError(e.kind || 'nocam', `${e.name || ''} ${e.message || ''}`); }
   try { await modelReady; } catch (e) { return showError('model', e?.message || e); }
   $('splash').hidden = true;
   S.phase = 'running';
-  aura?.start(); // held stopped behind the splash (see the aura mount)
+  aura?.start(); 
   showPaused(S.paused);
   lastFrame = performance.now();
-  if (!DEV_ROUTE) await setPaused(false); // the player route: the same verb space calls (emits `pause` on the bus)
+  if (!DEV_ROUTE) await setPaused(false); 
   requestAnimationFrame(loop);
 }
 $('start').onclick = start;
-// No sound while running = a visible way back in: the resume orb (wordless; Hebrew aria-label). Shown when the room is paused
-// (space / r, the #dev boot) OR when the browser holds the audio although the room plays (iOS 'interrupted':
-// camera prompt, a call, an app switch). A tap is a fresh gesture, so WebKit resumes there.
+
+
+
 function showPaused(p) {
   document.body.classList.toggle('paused', p);
   syncResumeCue();
@@ -242,14 +242,14 @@ function syncResumeCue() {
   $('resume').hidden = !(S.phase === 'running' && (S.paused || (audioCtx && audioCtx.state !== 'running')));
 }
 $('resume').onclick = () => { if (S.paused) setPaused(false); else audioCtx?.resume(); };
-// any touch or key while the room should play also re-takes the audio (resume() inside that gesture)
+
 for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, () => {
   if (audioCtx && S.phase === 'running' && !S.paused && audioCtx.state !== 'running') audioCtx.resume();
 }, { capture: true, passive: true });
 
-// ---------------- vision: one inference per tick, cycling VISION.pattern (pose, hands at parity) ----------------
+
 let lastTick = 0, tickN = 0, lastTs = 0, lastVideoTime = { hands: -1, pose: -1, face: -1 }, perfT0 = performance.now();
-function nextTs(now) { lastTs = Math.max(now, lastTs + 1); return lastTs; } // strictly increasing across both tasks
+function nextTs(now) { lastTs = Math.max(now, lastTs + 1); return lastTs; } 
 
 function tick(now) {
   const t = now / 1000;
@@ -257,7 +257,7 @@ function tick(now) {
   if (S.injectPose) S.pose = S.injectPose.none ? null : synthPose(S.injectPose);
   const canReal = video.readyState >= 2;
   const kind = VISION.pattern[tickN++ % VISION.pattern.length];
-  // a missing optional layer (hands / face) gives its slot to pose
+  
   const which = kind === 'hands' && (hands || S.inject) ? 'hands' : kind === 'face' && (face || S.injectFace) ? 'face' : 'pose';
   if (which === 'face') {
     let res = S.injectFace ? (S.injectFace.none ? null : synthBlendshapes(S.injectFace)) : undefined;
@@ -287,7 +287,7 @@ function tick(now) {
 }
 function track(p, ms) {
   p.n++;
-  if (p.n <= 10) { p.ms = ms; return; } // warm-up: not representative
+  if (p.n <= 10) { p.ms = ms; return; } 
   p.ms = p.ms * 0.85 + ms * 0.15;
   S.perf.tickMs = S.perf.tickMs ? S.perf.tickMs * 0.9 + ms * 0.1 : ms;
   if (S.perf.tickFps > VISION.minFps && S.perf.tickMs > VISION.adaptAt * (1000 / S.perf.tickFps)) S.perf.tickFps = VISION.minFps;
@@ -316,7 +316,7 @@ function updateBody(now, t) {
   } else if (now - S.lastSeen.body > BODY_HOLD_MS) { S.body = { present: false }; S.bodyFeat = null; }
 }
 
-// face: generic SOURCES only (face.*). No face->sound path lives here; POOL bindings / blends decide (mappings.js).
+
 function updateFace(now, res) {
   const r = faceT.update(res);
   if (r.present) {
@@ -326,9 +326,9 @@ function updateFace(now, res) {
   } else if (now - S.lastSeen.face > FACE_HOLD_MS) S.face = { present: false };
 }
 
-// ---------------- main loop ----------------
+
 let lastFrame = 0;
-// the inputs every reader shares (mappings, bindings, story, probes): body.f carries the whole-body sources
+
 function inputs() {
   const anyone = S.body.present || S.hands.A.present || S.hands.B.present;
   const bf = S.body.present ? S.body.f : {};
@@ -337,20 +337,20 @@ function inputs() {
 function loop(now) {
   if (S.phase !== 'running') return;
   const dt = Math.min(0.1, Math.max(0, (now - lastFrame) / 1000)); lastFrame = now;
-  // vision keeps running while paused, so the console still shows the camera + pose; nothing else advances
+  
   if (now - lastTick >= 1000 / S.perf.tickFps - 1) { lastTick = now; tick(now); }
   if (!S.paused) {
     S.energy = S.injectPose?.energy ?? energy.step(now / 1000);
-    S.groove += (S.energy - S.groove) * (1 - Math.exp(-dt / ENERGY.grooveSeconds)); // movement BUILDING
+    S.groove += (S.energy - S.groove) * (1 - Math.exp(-dt / ENERGY.grooveSeconds)); 
     const lifeDt = dt * S.timeScale, runT = bus.state.runT + dt;
     const inp = (S.inp = inputs());
     bus.state.sense = { energy: S.energy, groove: S.groove, inputs: inp };
-    story.update(inp, runT);            // observations open / close (and wake the conductor)
-    bindings.update(lifeDt);            // fades
-    conductor.step(lifeDt, dt);         // the one scheduler: turns, scheduled-ahead acts, probes
-    bus.emit('frame', { dt: lifeDt, dr: dt }); // the exact input frame (judge/HOOK.md H3): the recorder + replay read this stream
+    story.update(inp, runT);            
+    bindings.update(lifeDt);            
+    conductor.step(lifeDt, dt);         
+    bus.emit('frame', { dt: lifeDt, dr: dt }); 
     const changed = prog.tick(lifeDt, S.energy);
-    const { targets, glides, zone } = layer.compute(inp, S.zone); // statics + live bindings (preset `default` == MAPPINGS + POOL)
+    const { targets, glides, zone } = layer.compute(inp, S.zone); 
     if (changed || zone !== S.zone) pad.setNotes(voiceLead(pad.notes, prog.chord, zone));
     S.zone = zone; S.targets = targets; bus.state.targets = targets;
     pad.apply(targets, glides);
@@ -366,16 +366,16 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
-// ---------------- pause / reset controls ----------------
+
 async function setPaused(p) {
   if (!pad || S.phase !== 'running' || p === S.paused) return S.paused;
   S.paused = p;
-  showPaused(p); // before the await: the cue hides on the tap itself
+  showPaused(p); 
   if (p) await pad.suspend(); else { await pad.resume(); lastFrame = performance.now(); }
   bus.emit('pause', { paused: p });
   return S.paused;
 }
-// quick reset (between people): everything back to the first phase, and the room PAUSED again
+
 async function reset() {
   await setPaused(true);
   layer.reset(); bindings.defs = POOL.map((d) => ({ ...d })); bindings.reset(); prog.reset(); bodyT.reset(); faceT.reset(); energy.reset(); story.reset();
@@ -387,7 +387,7 @@ async function reset() {
   $('caption').classList.remove('on');
   aura?.reset();
   if (pad) pad.setNotes(voiceLead(pad.notes, prog.chord, 0));
-  mapsSig = ''; // the mappings editor rebuilds (the preset is back to default)
+  mapsSig = ''; 
   return true;
 }
 function setDev(on) {
@@ -400,21 +400,21 @@ function setDev(on) {
 addEventListener('hashchange', () => setDev(location.hash === '#dev'));
 addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (e.target.closest?.('input, select, textarea')) return; // typing in the console
+  if (e.target.closest?.('input, select, textarea')) return; 
   if (e.code === 'Space' || e.key === ' ') {
     e.preventDefault();
     if (S.phase === 'idle') { start(); return; }
     setPaused(!S.paused);
   } else if (e.key === 'd' || e.key === 'D') setDev(!S.dev);
-  else if ((e.key === 'r' || e.key === 'R') && S.dev) reset(); // dev route only (mappings.js:207, C10): a stray r never resets a participant ('d' still opens dev; not gated here)
-  else if ((e.key === 'j' || e.key === 'J') && window.__chamber.startRecorder) { // dev route only: J starts / saves a session
+  else if ((e.key === 'r' || e.key === 'R') && S.dev) reset(); 
+  else if ((e.key === 'j' || e.key === 'J') && window.__chamber.startRecorder) { 
     const c = window.__chamber;
     if (c.recorder?.recording) { c.recorder.download(); c.recorder.stop(); } else c.recorder = c.startRecorder();
   }
   else if (e.key === 'Enter' && S.phase === 'idle') start();
 });
 
-// ---------------- player drawing: soft additive glow + the breathing aura (wordless) ----------------
+
 const HAND_CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
 const POSE_CONN = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24]];
 const POSE_HEAD = [0, 2, 5, 7, 8];
@@ -440,12 +440,12 @@ function draw(now) {
   ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx2d.clearRect(0, 0, cw, ch);
   const m = coverMap(cw, ch);
-  const P = (p) => [m.ox + (1 - p.x) * m.w, m.oy + p.y * m.h]; // mirrored to match the video
+  const P = (p) => [m.ox + (1 - p.x) * m.w, m.oy + p.y * m.h]; 
   const k = Math.max(0.6, m.w / 1280);
   ctx2d.lineCap = 'round';
   ctx2d.globalCompositeOperation = 'lighter';
   const breathe = 0.85 + 0.15 * Math.sin(now / 900) + 0.4 * S.energy;
-  if (!auraLive(now)) drawAura(now, m, P); // the Canvas2D halo is the fallback only (?aura=0 / no aura): the two never stack
+  if (!auraLive(now)) drawAura(now, m, P); 
   if (S.pose && S.body.present) {
     const lm = S.pose, col = '150,170,255', ok = (i) => (lm[i].visibility ?? 1) > 0.5;
     glowPath(ctx2d, POSE_CONN.filter(([a, b]) => ok(a) && ok(b)).map(([a, b]) => [...P(lm[a]), ...P(lm[b])]), col, k * 1.4);
@@ -487,7 +487,7 @@ function drawAura(now, m, P) {
   ctx2d.fillStyle = g; ctx2d.beginPath(); ctx2d.arc(x, y, r, 0, Math.PI * 2); ctx2d.fill();
 }
 
-// ---------------- the developer console (d / #dev): never part of the player view ----------------
+
 const BAR_KEYS = Object.keys(MAPPINGS).filter((k) => k !== 'voicing');
 const fmtSrc = (src, mag) => (src == null ? '(binding only)' : typeof src === 'string' ? `${src}${mag ? ' |·|' : ''}` : src.map((t) => `${t.s}${t.mag ? '|·|' : ''}${t.inv ? '⁻' : ''}·${t.w}`).join(' + '));
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -516,12 +516,12 @@ function buildConsole() {
     conductor.act({ verb: 'prompt.set', args: { list: 'opening', cue, say: e.target.value }, why: 'dev console edited a prompt'  }, 'dev');
   };
 }
-// bar position: the inverse of the LIVE mapping's curve (a removed static falls back to the registry range)
+
 function norm01(k, v) {
   const m = layer.statics[k] || MAPPINGS[k];
   return curvePos(m.curve, m.range || TARGET[k].range, v);
 }
-// ---- the bindings table: rebuilt whenever the live binding set changes (map.create / map.remove at runtime) ----
+
 let bindSig = '';
 function buildBindTable() {
   bindSig = bindings.defs.map((d) => `${d.id}|${d.target}|${JSON.stringify(d.src)}`).join(';');
@@ -529,10 +529,10 @@ function buildBindTable() {
     <tr data-id="${esc(d.id)}"><td>${esc(d.id)}</td><td class="dim">${esc(fmtSrc(d.src, d.mag))} → ${esc(d.target)}</td><td class="st"></td><td class="why"></td>
     <td><button data-verb="binding.arm">arm</button><button data-verb="binding.retire">retire</button></td></tr>`).join('');
 }
-// ---- the mappings editor (#dev only): every live mapping, inline range / curve / weight -> map.update, create
-// (source x target from the registries), remove, undo. Every edit is a traced verb through conductor.act. ----
+
+
 let mapsSig = '';
-let mapsMsg = ''; // the last edit's result line (survives the editor rebuild)
+let mapsMsg = ''; 
 const setMapsMsg = (m) => { mapsMsg = m; $('c-maps-msg').textContent = m; mapsSig = ''; };
 const mapAct = (verb, args, why) => { const r = conductor.act({ verb, args, why }, 'dev'); setMapsMsg(`${verb} ${args.id ?? ''}: ${r.ok ? 'ok' : '✗ ' + (r.result?.why || r.error)}`); return r; };
 function buildMapsEditor() {
@@ -556,7 +556,7 @@ function wireMapsEditor() {
     const id = tr.dataset.id;
     if (e.target.matches('.lo, .hi')) {
       const range = [+tr.querySelector('.lo').value, +tr.querySelector('.hi').value], cur = layer.list().find((m) => m.id === id)?.range;
-      if (cur && cur[0] === range[0] && cur[1] === range[1]) return; // a no-op edit is not an undo step
+      if (cur && cur[0] === range[0] && cur[1] === range[1]) return; 
       mapAct('map.update', { id, range }, 'console: range');
     } else if (e.target.matches('.cv')) mapAct('map.update', { id, curve: e.target.value }, 'console: curve');
     else if (e.target.matches('.wt')) mapAct('map.update', { id, weight: Math.max(0, Math.min(1, +e.target.value)) }, 'console: weight');
@@ -585,7 +585,7 @@ const camCtx = $('c-cam').getContext('2d');
 function drawCam() {
   const W = $('c-cam').width, H = $('c-cam').height;
   camCtx.save(); camCtx.fillStyle = '#000'; camCtx.fillRect(0, 0, W, H);
-  camCtx.translate(W, 0); camCtx.scale(-1, 1); // mirrored, like the player sees it
+  camCtx.translate(W, 0); camCtx.scale(-1, 1); 
   if (video.readyState >= 2) camCtx.drawImage(video, 0, 0, W, H);
   camCtx.restore();
   const P = (p) => [(1 - p.x) * W, p.y * H];
@@ -627,7 +627,7 @@ function renderConsole(now) {
   if (!(document.activeElement?.matches?.('#c-maps input, #c-maps select')) && JSON.stringify(layer.list().map((m) => [m.id, m.range, m.curve, m.weight, m.src, m.target])) !== mapsSig) buildMapsEditor();
   for (const tr of $('c-bind').querySelectorAll('tr[data-id]')) {
     const st = bindings.s[tr.dataset.id];
-    if (!st) { tr.className = 'removed'; continue; } // binding.remove'd at runtime
+    if (!st) { tr.className = 'removed'; continue; } 
     tr.className = st.phase;
     tr.querySelector('.st').textContent = `${st.phase} w${st.w.toFixed(2)}${st.phase === 'armed' ? ` ${st.armedFor.toFixed(0)}s` : st.phase === 'cooling' ? ` ${st.coolFor.toFixed(0)}s` : ''}`;
     tr.querySelector('.why').textContent = st.by ? `${st.obs ?? '-'} · ${st.by} · ${st.why ?? ''}` : '';
@@ -655,7 +655,7 @@ function renderConsole(now) {
 buildConsole();
 setDev(location.hash === '#dev' || params.get('dev') === '1');
 
-// ---------------- debug hook (verify/headless.mjs; also the console's API surface) ----------------
+
 window.__chamber = {
   state: S, bus, conductor, bindings, story, layer,
   get phase() { return S.phase; },
@@ -665,23 +665,23 @@ window.__chamber = {
   get handsLoaded() { return !!hands; },
   get faceError() { return S.faceError; },
   get faceLoaded() { return !!face; },
-  // injectFace({jawOpen, smile, squint, blink, browUp, pucker, cheekPuff, gazeX, gazeY}) through the real face.js path;
-  // null = stop injecting; {none: true} = "no face"
+  
+  
   injectFace(p) { S.injectFace = p == null ? null : p.none ? { none: true } : { ...p }; },
   modelReady: () => modelReady.then(() => true),
-  // injectHand({x, y, spread, openness}) or injectHand(handA, handB). null = stop injecting; [] = "no hands".
+  
   injectHand(...hs) {
     if (hs[0] == null) { S.inject = null; return; }
     if (Array.isArray(hs[0])) hs = hs[0];
     S.inject = hs.filter(Boolean).map((h) => ({ ...h, y: h.y ?? (h.height != null ? 0.92 - 0.8 * h.height + 0.015 : 0.5) }));
   },
-  // injectPose({x, y, lean, headTilt, turn, nod, shrug, width, armsUp, reach, sway?, energy?}) through the real
-  // feature path (synthPose -> BodyTracker). null = stop; { none: true } = "no body".
+  
+  
   injectPose(p) { S.injectPose = p == null ? null : p.none ? { none: true } : { ...p }; },
   clearInject() { S.inject = null; S.injectPose = null; S.injectFace = null; },
   pause: () => setPaused(true), resume: () => setPaused(false), get paused() { return S.paused; },
   reset, setDev, setTimeScale: (x) => { S.timeScale = Math.max(0.01, +x || 1); },
-  // the same verbs the conductor calls
+  
   act: (verb, args, why) => conductor.act({ verb, args, why }, 'dev'),
   setPhase: (name) => conductor.act({ verb: 'phase.set', args: { name, why: 'hook' } }, 'dev'),
   arm: (id) => conductor.act({ verb: 'binding.arm', args: { id, force: true, why: 'hook' } }, 'dev'),
@@ -700,36 +700,36 @@ window.__chamber = {
   features: () => ({ A: S.hands.A.present ? { ...S.hands.A.f } : null, B: S.hands.B.present ? { ...S.hands.B.f } : null, body: S.body.present ? { ...S.body.f } : null, face: S.face.present ? { ...S.face.f } : null, energy: S.energy, groove: S.groove }),
   perf: () => JSON.parse(JSON.stringify(S.perf)),
   rms: () => pad?.rms() ?? 0,
-  duck: () => pad?.ducker?.snapshot() ?? null, // H3 duck state (dev/test)
-  swell: () => (pad ? { ref: pad.phaseName ?? null, count: pad.swellFx?.count ?? 0, last: pad.swellFx?.last ?? null } : null), // H4 (dev/test)
+  duck: () => pad?.ducker?.snapshot() ?? null, 
+  swell: () => (pad ? { ref: pad.phaseName ?? null, count: pad.swellFx?.count ?? 0, last: pad.swellFx?.last ?? null } : null), 
   chimeRms: () => pad?.chimeRms() ?? 0,
   audioState: () => audioCtx?.state,
   aura: () => ({ ...S.aura }),
-  auraLayer: () => (aura ? { kind: aura.kind, ...aura.stats() } : null), // visual/AURA-HOOK.md §4 (dev/test)
-  // a frozen read-only snapshot of the LIVE mapping set (writes go through act('map.*', ...))
+  auraLayer: () => (aura ? { kind: aura.kind, ...aura.stats() } : null), 
+  
   get mappings() { return layer.snapshot(); },
-  describe: () => layer.describe(), // schema chamber.mapping/1 (sources, targets, curves, verbs, caps, preset)
+  describe: () => layer.describe(), 
   undo: (n = 1) => conductor.act({ verb: 'undo', args: { n }, why: 'hook' }, 'dev'),
 };
-// the session recorder (judge/recorder.js; judge/HOOK.md H2) loads on the dev route only (#dev, dev/test only).
-// The player route never requests it. Read-only on the room: it subscribes to the bus and reads the hook's getters.
+
+
 if (DEV_ROUTE) import('./judge/recorder.js').then(({ startRecorder }) => { window.__chamber.startRecorder = startRecorder; });
 
-// ---------------- voice (ON by default; ?voice=0 is the kill switch; voice/HOOK.md §1) ----------------
-// Dynamic import: with ?voice=0 not one byte of voice code loads (mountVoice's own voiceEnabled() agrees: '0' -> null).
-// The voice acts as 'voice' ONLY (conductor.actor pins
-// the provenance: untrusted, so AGENT_MAP_CAP + bindable-only apply; a Director phase.set traces by 'voice'), never 'dev'.
+
+
+
+
 if (params.get('voice') !== '0') {
   import('./voice/realtime.js').then(({ mountVoice }) => {
     const voiceAct = conductor.actor('voice');
     const chamber = { ...window.__chamber, act: (verb, args, why) => voiceAct(verb, args, why) };
-    window.__chamber.voiceAct = voiceAct; // dev/test: the exact act the mount hands the voice session
-    // no config: VOICE_CONFIG's gatewayOrigin is live. Nothing connects on load: start() needs unlock() first and the orb tap
-    // H3 preferred duck key: a follower on the voice output node (inert until the voice lane calls onOutput)
+    window.__chamber.voiceAct = voiceAct; 
+    
+    
     const onOutput = (node) => { voiceOut = node; pad?.voiceKey(node); };
     const voice = window.__chamber.voice = mountVoice({ bus, chamber, getAudioCtx: () => audioCtx, onOutput });
-    // the start orb is the call's start control (wordless): the same tap that wakes the room asks for the call. It runs after
-    // start()'s synchronous part, so audioCtx exists. Locked (no unlock yet) = a no-op: no mic, no request.
+    
+    
     if (voice) $('start').addEventListener('click', () => { voice.start().catch?.(() => {}); });
   });
 }

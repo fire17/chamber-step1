@@ -1,23 +1,23 @@
-// The conductor: the ONE scheduler. Pure (no DOM, no audio): node-testable with a fake clock.
-//
-//   bus ──reads──▶ policies ──propose {acts, wait, why}──▶ conductor ──calls──▶ verbs ──▶ bindings / sound / words
-//    ▲                                                          │
-//    └──────────── observations, probe results, edits ──────────┘   (wake the conductor early)
-//
-// - A TURN asks every policy the current phase enables (PHASES[p].policies) whose own time is due, runs the acts they
-//   propose through the verb registry, and sleeps for the soonest policy's wait, clamped to 1..10 s (PLAN §2 cadence).
-//   Bus events (CONDUCTOR.wakeOn) wake a policy early unless it asked for a firm wait (e.g. the DJ just acted).
-// - It reasons over NOW and AHEAD: an act may carry `at` (seconds after the turn); it is queued and fired on time
-//   (e.g. the chime 1.6 s into its cue, so the word and the sound line up).
-// - PHASES never change by a timer: only an explicit phase.set (the Director in Step 3; the dev console, dev/test
-//   only). The `readiness` policy publishes time-in-phase / arms / turns / stillness as data and never acts.
-// - VERBS are the only way anything changes: binding.arm / binding.retire / phase.set / say / stimulus / prompt.set /
-//   policy.set / hold / body.oneshot (G8: gated, traced, must cite an observation id). The app registers the effectful ones (stimulus = audio, say = captions now, the Mouth in
-//   Step 3). The console's manual edits and a future LLM call the same verbs (conductor.act).
-// - PROBES back claims (ORACLE §9): an act with `args.claim` opens a claim; a policy may `expect` a probe on it.
-//   audible = the stimulus' own tap RMS inside a window; agency = for ANY binding, after a volitional onset (an
-//   open observation on its source), source and the live audio param must correlate with the binding's sign.
-// - ONE TRACE PER TURN: inputs (energy, groove, open observations), each policy's reasoning, every act + result.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { CONDUCTOR, DJ, PHASES, PHASE_EDGES, FIRST_PHASE, CUES, PROBES, srcNames } from './mappings.js';
 import { curveProbe } from './curves.js';
 import { MappingLayer, AGENT_MAP_CAP, TRUSTED } from './layer.js';
@@ -29,9 +29,9 @@ export function pearson(xs, ys) {
   for (let i = 0; i < n; i++) { const dx = xs[i] - mx, dy = ys[i] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
   return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : 0;
 }
-// Agency over samples [{v (source), y (param)}] for binding def d. Generic: the expected sign comes from the
-// binding's range direction (flipped by an `invert` curve); exp curves are compared in log space (curveProbe).
-// Pure (exported for tests).
+
+
+
 export function agencyProbe(samples, d, cfg = PROBES.agency) {
   const n = samples.length;
   if (n < cfg.minSamples) return { pass: false, n, why: `${n}/${cfg.minSamples} samples` };
@@ -43,25 +43,25 @@ export function agencyProbe(samples, d, cfg = PROBES.agency) {
   return { pass, n, r: +r.toFixed(3), span: +span.toFixed(3), why: pass ? 'source and param move together, right direction' : r <= -cfg.minR ? 'WRONG DIRECTION' : span < cfg.minSpan ? 'not enough travel' : 'weak correlation' };
 }
 
-// G8 body-event one-shots: the gate's tuning (def.ONESHOT overrides; a phase may override per key, or set oneshot: false).
-//   cooldown: s (life) between ANY two one-shots · each: s between two of the same `what` · maxAge: s (real) an observation
-//   may have been closed and still be cited · ring: how many gate decisions bus.state.oneshots keeps
-//   args: the ONLY extra arguments a caller may pass to an effect, each a closed SAFE range [lo, hi] (+ int: integers
-//   only); anything else, or out of range, is refused at the 'args' gate (an untrusted caller never reaches the audio raw)
+
+
+
+
+
 export const ONESHOT = { cooldown: 4, each: 8, maxAge: 3, ring: 40, args: { level: { range: [0, 1] }, midi: { range: [60, 96], int: true } } };
-const SHOT_NAME = /^[a-z][a-z0-9_-]{0,31}$/; // a one-shot's name (registered via oneShot)
+const SHOT_NAME = /^[a-z][a-z0-9_-]{0,31}$/; 
 const r3 = (v) => (typeof v === 'number' ? +v.toFixed(3) : v);
 const groupOf = (src) => srcNames(src)[0]?.split('.')[0];
 
 export class Conductor {
-  // bindings: life.js Bindings · story: BodyStory · sensors: { stimulusRms(), source(d), param(target), sound() } (the audio graph)
-  // layer: the MappingLayer (layer.js) over those bindings: the live static mappings + the map.* verbs
+  
+  
   constructor({ bus, bindings, story, layer = null, sensors = {}, def = { CONDUCTOR, DJ, PHASES, FIRST_PHASE, CUES, PROBES } }) {
     Object.assign(this, { bus, bindings, story, sensors, def });
     this.layer = layer || new MappingLayer({ bindings });
-    this.mapCount = {}; // map.* verbs per `by` since the last turn (the agent cap)
+    this.mapCount = {}; 
     this.verbs = {}; this.policies = {};
-    this.cues = JSON.parse(JSON.stringify(def.CUES)); // live-editable copy (prompt.set)
+    this.cues = JSON.parse(JSON.stringify(def.CUES)); 
     this.registerCore();
     for (const ev of def.CONDUCTOR.wakeOn) bus.on(ev, (d) => this.#wake(ev, d));
     this.reset();
@@ -70,21 +70,21 @@ export class Conductor {
     this.t = 0; this.run = 0; this.n = 0; this.due = {}; this.firm = {}; this.nextTurn = 0; this.woke = [];
     this.ahead = []; this.expects = {}; this.traces = this.traces || []; this.lastMoveT = null; this.mapCount = {};
     this.bus.state.phase = null; this.bus.state.cue = null; this.bus.state.claims = {}; this.bus.state.off = {};
-    this.bus.state.oneshots = []; this.shotT = new Map(); this.shotObs = new Map(); // G8: the one-shot gate's memory (what -> t, 'what:obs' -> obs id)
+    this.bus.state.oneshots = []; this.shotT = new Map(); this.shotObs = new Map(); 
     this.#setPhase(this.def.FIRST_PHASE, 'boot', 'first phase');
   }
   register(name, fn) { this.verbs[name] = fn; }
   policy(name, p) { this.policies[name] = p; }
-  edges(from = this.bus.state.phase?.name) { return (this.def.PHASE_EDGES ?? PHASE_EDGES)[from] || []; } // R2: where a phase.set may go
+  edges(from = this.bus.state.phase?.name) { return (this.def.PHASE_EDGES ?? PHASE_EDGES)[from] || []; } 
   get phaseDef() { return this.def.PHASES[this.bus.state.phase?.name] || {}; }
   cfg(name) { return { ...this.def[name.toUpperCase()], ...(this.phaseDef[name] || {}) }; }
 
-  // ---------------- the clock: called every unpaused frame ----------------
-  // dt: life seconds (scaled), dReal: real unpaused seconds (probe windows and the body story are real time)
+  
+  
   step(dt, dReal = dt) {
     this.t += dt; this.run += dReal;
     this.bus.state.t = this.t; this.bus.state.runT = this.run;
-    if ((this.bus.state.sense?.energy ?? 0) >= (this.def.DJ ?? DJ).stillBelow) this.lastMoveT = this.t; // readiness: stillness readout
+    if ((this.bus.state.sense?.energy ?? 0) >= (this.def.DJ ?? DJ).stillBelow) this.lastMoveT = this.t; 
     while (this.ahead.length && this.ahead[0].due <= this.t) { const a = this.ahead.shift(); a.trace.fired.push(this.#exec(a.act, a.by, a.t0)); }
     this.#probe();
     const debounced = this.woke.length && this.t - (this.lastTurn ?? -1e9) >= this.def.CONDUCTOR.wakeDebounce;
@@ -98,12 +98,12 @@ export class Conductor {
   }
   #enabled() { return (this.phaseDef.policies || []).filter((p) => !this.bus.state.off[p]); }
 
-  // ---------------- a turn ----------------
+  
   turn() {
     const s = this.bus.state, trace = {
       n: ++this.n, t: r3(this.t), phase: s.phase.name, woke: this.woke.length ? this.woke.slice(0, 4) : ['timer'],
       sense: { energy: r3(s.sense.energy), groove: r3(s.sense.groove), armed: this.bindings.armed().map((d) => d.id), open: this.story.snapshot().open.map((o) => `${o.id}:${o.ch}`) },
-      sound: this.sensors.sound?.() ?? null, // what the room sounded like at this turn (sensor, optional)
+      sound: this.sensors.sound?.() ?? null, 
       policies: [], acts: [], fired: [], wait: 0,
     };
     this.woke = []; this.lastTurn = this.t; this.mapCount = {}; this.phaseTurns = (this.phaseTurns || 0) + 1;
@@ -121,7 +121,7 @@ export class Conductor {
         if (act.at > 0) { this.#schedule(act, name, trace); trace.acts.push({ ...act, by: name, scheduled: r3(this.t + act.at) }); }
         else trace.acts.push(this.#exec(act, name));
       }
-      if (s.phase.name !== trace.phase) break; // a phase change ends the turn: the next turn reads the new phase
+      if (s.phase.name !== trace.phase) break; 
     }
     const dues = this.#enabled().map((p) => this.due[p] ?? this.t);
     trace.wait = r3(Math.min(this.def.CONDUCTOR.waitMax, Math.max(this.def.CONDUCTOR.waitMin, (dues.length ? Math.min(...dues) : this.t + this.def.CONDUCTOR.waitMax) - this.t)));
@@ -135,11 +135,11 @@ export class Conductor {
   }
   #trace(tr) { this.traces.push(tr); if (this.traces.length > this.def.CONDUCTOR.traceRing) this.traces.splice(0, this.traces.length - this.def.CONDUCTOR.traceRing); this.bus.emit('trace', tr); }
 
-  // ---------------- verbs ----------------
+  
   #exec(act, by, _t0, extra = {}) {
     const rec = { verb: act.verb, args: act.args || {}, by, t: r3(this.t) };
     if (act.why) rec.why = act.why;
-    const fn = Object.hasOwn(this.verbs, act.verb) ? this.verbs[act.verb] : null; // own verbs only (never 'toString')
+    const fn = Object.hasOwn(this.verbs, act.verb) ? this.verbs[act.verb] : null; 
     try {
       if (!fn) throw new Error(`unknown verb '${act.verb}'`);
       const mapVerb = act.verb.startsWith('map.') || act.verb === 'undo' || /^binding\.(add|rebind|remove)$/.test(act.verb);
@@ -159,15 +159,15 @@ export class Conductor {
     this.bus.emit('act', rec);
     return rec;
   }
-  // The outside world (console edits, later the mind) calls verbs through here: same verbs, own trace.
+  
   act(act, by = 'dev') {
     const rec = this.#exec(act, by);
     this.#trace({ n: ++this.n, t: r3(this.t), phase: this.bus.state.phase.name, woke: [`${by} edit`], sense: { energy: r3(this.bus.state.sense.energy) }, sound: this.sensors.sound?.() ?? null, policies: [{ name: by, why: act.why || 'manual edit' }], acts: [rec], fired: [], wait: r3(Math.max(0, this.nextTurn - this.t)) });
     this.bus.emit('edit', rec);
     return rec;
   }
-  // A provenance-PINNED act for an outside caller (the voice / the Director, later Step 3's mind): every call is traced
-  // with this `by`, whatever the caller passes, so an untrusted caller can never claim 'dev' (TRUSTED skips the agent cap).
+  
+  
   actor(by) {
     if (TRUSTED.includes(by) || by === 'cues') throw new Error(`actor('${by}'): a pinned actor must be untrusted`);
     return (verb, args, why) => this.act({ verb, args, why }, by);
@@ -179,9 +179,9 @@ export class Conductor {
       const ok = B.arm(id, { by, obs, why, now: this.t, force, claim });
       return ok ? { ok, state: 'armed' } : { ok, why: `refused: ${B.s[id].phase}${B.owner(B.def(id).target) ? `, target ${B.def(id).target} owned by ${B.owner(B.def(id).target).id}` : ''}` };
     });
-    // runtime re-wiring (the console, a voice / Step 3 agent, the DJ): ONE verb family, map.* (layer.js validates
-    // against the registry and records the inverse for `undo`). An agent (by not dev / cue) may run at most
-    // AGENT_MAP_CAP of them per turn, and only on bindable sources.
+    
+    
+    
     const L = this.layer;
     const mctx = (by, extra) => ({ by, now: this.t, agent: !TRUSTED.includes(by) && by !== 'cues', ...extra });
     this.register('map.create', function (args, { by, ...x }) { return L.create(args, mctx(by, x)); });
@@ -197,7 +197,7 @@ export class Conductor {
       }
       return done.length ? { ok: done.every((d) => d.ok), undone: done, left: L.undoStack.length } : { ok: false, why: 'nothing to undo' };
     });
-    // aliases (the face patch's verbs): binding.add {def} / binding.rebind {id, ...patch} / binding.remove {id}
+    
     this.register('binding.add', function ({ def = {} }, ctx) { return this.verbs['map.create'].call(this, { kind: 'binding', ...def }, ctx); });
     this.register('binding.rebind', function ({ id, force, why, ...patch }, ctx) { return this.verbs['map.update'].call(this, { id, ...patch }, ctx); });
     this.register('binding.remove', function ({ id, why }, ctx) { return this.verbs['map.remove'].call(this, { id, why }, ctx); });
@@ -209,13 +209,13 @@ export class Conductor {
     this.register('phase.set', function ({ name, why = '' }, { by }) {
       if (!this.def.PHASES[name]) return { ok: false, why: `no phase '${name}'` };
       const from = this.bus.state.phase?.name;
-      if (name === from) return { ok: true, noop: true, phase: name, why: `already in ${name}: a hold, nothing restarts` }; // R2: state untouched
-      if (!String(why).trim()) return { ok: false, phase: from, why: 'why required' }; // P-FLUID: every move carries its reason
+      if (name === from) return { ok: true, noop: true, phase: name, why: `already in ${name}: a hold, nothing restarts` }; 
+      if (!String(why).trim()) return { ok: false, phase: from, why: 'why required' }; 
       const edges = this.edges(from);
       if (!edges.includes(name)) return { ok: false, phase: from, why: `no edge ${from} -> ${name} (allowed: ${edges.join(', ') || 'none'})` };
       this.#setPhase(name, by, why); return { ok: true, phase: name, from };
     });
-    // default `say`: publish the line; whoever delivers words (captions now, the Mouth later) subscribes.
+    
     this.register('say', function (args) { this.bus.state.said.push({ t: r3(this.t), ...args }); this.bus.state.said.splice(0, Math.max(0, this.bus.state.said.length - 20)); this.bus.emit('say', args); return { ok: true, delivered: 'bus' }; });
     this.register('prompt.set', function ({ list = 'opening', cue, say, en }) {
       const c = this.cues[list]?.find((x) => x.id === cue);
@@ -224,16 +224,16 @@ export class Conductor {
     });
     this.register('policy.set', function ({ name, on }) { this.bus.state.off[name] = !on; return { ok: true, policy: name, on: !!on }; });
     this.register('hold', function ({ why = '' }) { return { ok: true, held: why }; });
-    // G8: body-event ONE-SHOTS. The only way a body event fires a discrete effect: ONE gated, traced verb that must cite
-    // the observation (story id) it answers. Gate, in order: a valid, known obs id (else refused) -> readiness (the
-    // effect is registered, the phase allows one-shots, the observation is open or closed < maxAge s, not already
-    // answered) -> cooldown (any one-shot, and the same `what`). Every decision, fired or refused, is traced on the bus
-    // ('oneshot') and kept in bus.state.oneshots. Effects register with oneShot(what, fn); 'chime' delegates to the
-    // app's `stimulus` verb when one is registered.
-    // The caller's reason is args.why, else the act's why (actor(by)(verb, args, why) passes it there).
+    
+    
+    
+    
+    
+    
+    
     this.register('body.oneshot', function ({ what, obs, why = '', ...rest } = {}, { by, why: actWhy = '' }) { return this.#oneShot({ what, obs, why: why || actWhy, rest }, by); });
   }
-  // effects live in a Map (never a plain object: 'toString' / 'constructor' must not resolve to an inherited "effect")
+  
   oneShot(what, fn) {
     if (typeof what !== 'string' || !SHOT_NAME.test(what)) throw new Error(`oneShot: bad name '${what}' (${SHOT_NAME})`);
     if (typeof fn !== 'function') throw new Error(`oneShot('${what}'): fn must be a function`);
@@ -245,7 +245,7 @@ export class Conductor {
     if (what === 'chime' && Object.hasOwn(this.verbs, 'stimulus')) return (args, ctx) => this.verbs.stimulus.call(this, { ...args, what: 'chime' }, ctx);
     return null;
   }
-  // the extra args, checked against cfg.args (own keys only, finite, inside the SAFE range): an error string or null
+  
   #shotArgs(rest, spec) {
     for (const [k, v] of Object.entries(rest)) {
       const a = spec && Object.hasOwn(spec, k) ? spec[k] : null;
@@ -264,11 +264,11 @@ export class Conductor {
       this.bus.emit('oneshot', ev);
       return res;
     };
-    // (1) citation: a well-formed obs id the body story knows
+    
     if (typeof obs !== 'string' || !/^o\d+$/.test(obs)) return done({ ok: false, gate: 'cite', why: 'obs id required (an observation id like o12)' });
     const o = this.story?.get?.(obs);
     if (!o) return done({ ok: false, gate: 'cite', why: `no observation '${obs}'` });
-    // (2) readiness
+    
     if (typeof what !== 'string' || !what) return done({ ok: false, gate: 'ready', why: 'what required' });
     const fx = this.#shotEffect(what);
     if (!fx) return done({ ok: false, gate: 'ready', why: `no one-shot '${what}'` });
@@ -281,17 +281,17 @@ export class Conductor {
     if (this.shotObs.has(key)) return done({ ok: false, gate: 'ready', why: `${obs} already answered with '${what}'` });
     const argErr = this.#shotArgs(rest, cfg.args);
     if (argErr) return done({ ok: false, gate: 'args', why: argErr });
-    // (3) cooldown
+    
     const last = Math.max(-Infinity, ...this.shotT.values()), lastW = this.shotT.get(what) ?? -Infinity;
     if (t - last < cfg.cooldown) return done({ ok: false, gate: 'cooldown', why: `cooldown: ${r3(cfg.cooldown - (t - last))} s left (any one-shot)` });
     if (t - lastW < cfg.each) return done({ ok: false, gate: 'cooldown', why: `cooldown: ${r3(cfg.each - (t - lastW))} s left ('${what}')` });
-    // fire
+    
     let out; try { out = fx.call(this, { ...rest, obs }, { by, t }); } catch (e) { out = { ok: false, why: `effect error: ${e.message}` }; }
-    // only an effect's primitive result fields reach the trace (never an object graph: traces must stay JSON-safe)
+    
     out = out && typeof out === 'object' && !Array.isArray(out) ? Object.fromEntries(Object.entries(out).filter(([, v]) => v === null || (typeof v !== 'object' && typeof v !== 'function'))) : {};
     if (out.ok === false) return done({ ...out, ok: false, gate: 'effect', why: out.why || 'effect refused', ch: o.ch });
     this.shotT.set(what, t); this.shotObs.set(key, obs);
-    // bounded: an answered observation the story no longer knows can never be cited again (the cite gate refuses it)
+    
     for (const [k, id] of this.shotObs) if (!this.story.get(id)) this.shotObs.delete(k);
     return done({ ...out, ok: true, gate: 'pass', what, obs, ch: o.ch, why: `${why ? `${String(why).slice(0, 200)} · ` : ''}answers ${o.label} (${obs})` });
   }
@@ -300,11 +300,11 @@ export class Conductor {
     s.phase = { name, since: this.t, by, why, goal: this.def.PHASES[name].goal };
     const list = this.def.PHASES[name].cues;
     s.cue = list ? { list, i: 0, stage: null } : null;
-    this.due = {}; this.firm = {}; this.nextTurn = this.t; this.phaseTurns = 0; // a new phase gets a turn at once
+    this.due = {}; this.firm = {}; this.nextTurn = this.t; this.phaseTurns = 0; 
     this.bus.emit('phase', s.phase);
   }
 
-  // ---------------- probes ----------------
+  
   expect(claim, spec) { this.expects[claim] = { ...spec, claim, samples: [], peak: 0, onsetObs: null }; }
   #probe() {
     const claims = this.bus.state.claims;
@@ -319,7 +319,7 @@ export class Conductor {
       } else if (ex.probe === 'agency') {
         const cfg = this.def.PROBES.agency, d = this.bindings.def(ex.binding), st = this.bindings.s[ex.binding];
         if (!d || st.phase !== 'armed' || st.w < 0.5) continue;
-        // volitional onset: an open observation on (any of) the binding's source(s)
+        
         const obs = srcNames(d.src).map((ch) => this.story.moving(ch)).find(Boolean);
         if (!ex.onsetObs) { if (!obs) continue; ex.onsetObs = obs.id; }
         const v = this.sensors.source?.(d), y = this.sensors.param?.(d.target);
@@ -336,10 +336,10 @@ export class Conductor {
   #view() { return { t: this.t, run: this.run, s: this.bus.state, phase: this.phaseDef, B: this.bindings, story: this.story }; }
 }
 
-// ---------------- the built-in policies (each: a function of the bus that proposes acts) ----------------
 
-// cues: runs the phase's cue list (data, mappings.js CUES). Says, schedules acts ahead, waits on probes,
-// re-offers, repairs once, strips a failed claim, skips a cue whose required claim is not verified.
+
+
+
 export const cuesPolicy = {
   wakeOn: ['probe', 'edit'],
   fn({ t, s }) {
@@ -394,9 +394,9 @@ export const cuesPolicy = {
   },
 };
 
-// dj: the auto-DJ binding policy. Scores idle pool bindings by how salient their source is in the body story
-// right now (an OPEN observation, cited by id), arms the best, retires what has held its time or gone quiet.
-// One act per turn, so gestures start answering one by one. Still body = the room holds (no arm, no retire).
+
+
+
 export const djPolicy = {
   wakeOn: ['obs.open'],
   fn({ s, run, B, story }) {
@@ -408,7 +408,7 @@ export const djPolicy = {
     const claimed = (d) => B.s[d.id].claim && s.claims[B.s[d.id].claim]?.state === 'pending';
     for (const d of armed) {
       const st = B.s[d.id], quiet = Math.min(...srcNames(d.src).map((ch) => story.quietFor(ch, run)));
-      if (claimed(d)) continue; // a probe is still reading it
+      if (claimed(d)) continue; 
       if (st.armedFor >= d.hold * (cfg.holdScale ?? 1)) return { acts: [{ verb: 'binding.retire', args: { id: d.id, why: `held ${Math.round(st.armedFor)} s` } }], why: `retire ${d.id}: held its time`, wait: cfg.waitAfterAct, firm: true };
       if (st.armedFor >= cfg.minArmed && quiet >= cfg.idleRetire) return { acts: [{ verb: 'binding.retire', args: { id: d.id, why: `${srcNames(d.src).join('+')} quiet ${Math.round(quiet)} s` } }], why: `retire ${d.id}: its source went quiet`, wait: cfg.waitAfterAct, firm: true };
     }
@@ -419,7 +419,7 @@ export const djPolicy = {
     const best = cands[0], owner = B.owner(best.d.target);
     const because = `${best.obs.label} (${best.obs.id}, score ${r3(best.score)})`;
     if (!owner && armed.length < cfg.maxArmed) return { acts: [{ verb: 'binding.arm', args: { id: best.d.id, obs: best.obs.id, why: because } }], why: `arm ${best.d.id}: ${because}`, wait: cfg.waitAfterAct, firm: true };
-    // full (or its target taken): swap only for a clearly stronger candidate over a binding that has had its time
+    
     const victim = owner || armed.filter((d) => !claimed(d)).sort((a, b) => score(a) - score(b))[0];
     if (victim && !claimed(victim) && B.s[victim.id].armedFor >= cfg.minArmed && best.score >= cfg.swapMargin * Math.max(0.01, score(victim)))
       return { acts: [{ verb: 'binding.retire', args: { id: victim.id, why: `making room for ${best.d.id}` } }, { verb: 'binding.arm', args: { id: best.d.id, obs: best.obs.id, why: because, force: true } }], why: `swap ${victim.id} -> ${best.d.id}: ${because}`, wait: cfg.waitAfterAct, firm: true };
@@ -427,10 +427,10 @@ export const djPolicy = {
   },
 };
 
-// readiness: READOUTS only, never an act (no timer phase exits; observer file session-20261031-1717-semantic-gates).
-// Publishes bus.state.readiness = { phase, inPhase, arms, turns, stillFor, cuesDone, next, marks, edges } for the Director
-// (Step 3 switch_phase), who alone judges, semantically, that a phase is used up. The dev console's phase.set is
-// dev/test only. The phase holds; the room keeps acting (cues / DJ, every <= 10 s).
+
+
+
+
 export const readinessPolicy = {
   wakeOn: [],
   fn({ t, s, B }) {

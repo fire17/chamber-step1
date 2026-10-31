@@ -1,34 +1,34 @@
-// The MappingLayer (DYNAMIC_LAYER.md M4/M5): the LIVE mapping set, editable at runtime through ONE verb family:
-//   map.create {id, kind:'static'|'binding', src, target?, range, curve?, ...}   map.update {id, ...patch}
-//   map.remove {id}   undo {n=1}
-// static  = an always-on mapping, one per target (id === its target name; a removed one rests the target).
-// binding = a POOL-style binding the conductor arms / retires (cross-fades over the static), many per target.
-// Preset `default` = deep copies of MAPPINGS (statics) + POOL (bindings), so the default sound is identical
-// (verify/golden). Every edit is validated against the SOURCE / TARGET registries (registry.js) and refused with
-// a clean `why`, never a throw. Pure: no DOM, no audio.
+
+
+
+
+
+
+
+
 import { MAPPINGS, POOL, computeTargets, srcNames } from './mappings.js';
 import { mapError, MAP_FIELDS, TARGET, describeRegistry } from './registry.js';
 
 const clone = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
 export const UNDO_RING = 100;
-export const AGENT_MAP_CAP = 4; // map.* verbs per conductor turn for agents (by other than dev / cue)
+export const AGENT_MAP_CAP = 4; 
 export const TRUSTED = ['dev', 'cue', 'boot', 'undo'];
 const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 export const PRESET_HASH = 'fnv1a:' + fnv(JSON.stringify({ MAPPINGS, POOL }));
 
 export class MappingLayer {
-  // bindings: the life.js Bindings the conductor arms / retires (its defs ARE the live binding set)
+  
   constructor({ bindings, statics = MAPPINGS } = {}) {
     this.B = bindings; this.defaults = statics;
     this.statics = clone(statics);
     this.undoStack = []; this.edits = 0;
   }
-  reset() { this.statics = clone(this.defaults); this.undoStack = []; } // bindings: Bindings.reset() is the caller's
-  // the frame: static mappings + live bindings over them (the same float ops as computeTargets + Bindings.apply)
+  reset() { this.statics = clone(this.defaults); this.undoStack = []; } 
+  
   compute(inputs, zone) { const r = computeTargets(inputs, zone, this.statics); this.B.apply(r.targets, inputs); return r; }
   kindOf(id) { return this.statics[id] ? 'static' : this.B.def(id) ? 'binding' : null; }
 
-  // ---------------- the verbs (conductor.js registers them; `ctx` = { by, now, agent }) ----------------
+  
   create(args = {}, ctx = {}) {
     const { kind = 'binding', why, at, ...def } = args;
     if (kind === 'static') { if (def.id == null && def.target) def.id = def.target; if (def.target != null && def.target !== def.id) return no(`a static mapping's id is its target ('${def.target}')`); delete def.target; }
@@ -43,7 +43,7 @@ export class MappingLayer {
     if (kind === 'static' && full.label == null) full.label = TARGET[def.id]?.label;
     const e = mapError(full, kind, ctx); if (e) return no(e);
     Object.keys(full).forEach((k) => full[k] === undefined && delete full[k]);
-    if (kind === 'static') { // keyed by target (no id field, as MAPPINGS), kept in registry order so a re-create restores exactly
+    if (kind === 'static') { 
       const { id, ...m } = full, next = {};
       for (const k of Object.keys(TARGET)) if (k === id) next[k] = m; else if (this.statics[k]) next[k] = this.statics[k];
       this.statics = next;
@@ -68,7 +68,7 @@ export class MappingLayer {
     const keys = [...Object.keys(patch), ...unset];
     const prev = {}, prevUnset = [];
     for (const k of keys) { if (k in cur) prev[k] = clone(cur[k]); else prevUnset.push(k); }
-    for (const k of Object.keys(patch)) cur[k] = clone(patch[k]); // in place: an armed binding keeps its fade `w` (no zipper)
+    for (const k of Object.keys(patch)) cur[k] = clone(patch[k]); 
     for (const k of unset) delete cur[k];
     if (kind === 'binding') this.B.events.push({ t: ctx.now ?? 0, id, ev: 'update', by: ctx.by, why, patch: clone(patch) });
     this.#did('map.update', { id, ...patch, ...(unset.length ? { __unset: unset } : {}) }, { verb: 'map.update', args: { id, ...prev, ...(prevUnset.length ? { __unset: prevUnset } : {}) } }, ctx);
@@ -91,7 +91,7 @@ export class MappingLayer {
     this.B.events.push({ t: ctx.now ?? 0, id, ev: 'remove', by: ctx.by, why });
     return { ok: true, id, kind, state: 'removed' };
   }
-  // undo: pops the inverse; the conductor runs it as a verb (so it is traced), with ctx.undoing set
+  
   popUndo() { return this.undoStack.pop() || null; }
   #moveTo(id, at) { const i = this.B.defs.findIndex((d) => d.id === id); const [d] = this.B.defs.splice(i, 1); this.B.defs.splice(Math.min(at, this.B.defs.length), 0, d); }
   #did(verb, args, inverse, ctx) {
@@ -101,7 +101,7 @@ export class MappingLayer {
     if (this.undoStack.length > UNDO_RING) this.undoStack.splice(0, this.undoStack.length - UNDO_RING);
   }
 
-  // ---------------- reads ----------------
+  
   list() {
     const st = Object.entries(this.statics).map(([id, m]) => ({ id, kind: 'static', target: id, src: clone(m.src), mag: m.mag, range: m.range && [...m.range], curve: clone(m.curve), weight: m.weight ?? 1, rest: m.rest, label: m.label }));
     const bd = this.B.defs.map((d) => ({ id: d.id, kind: 'binding', target: d.target, src: clone(d.src), mag: d.mag, range: [...d.range], curve: clone(d.curve), weight: d.weight ?? 1, label: d.label, state: this.B.s[d.id]?.phase, w: this.B.s[d.id]?.w, ...(d.removing ? { removing: true } : {}) }));

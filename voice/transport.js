@@ -1,22 +1,22 @@
-// Swappable voice TRANSPORT. Everything above this (session.js: turns, tool allowlist, verbs, say) is transport-agnostic.
-//
-// Interface (both classes):
-//   await t.connect(ticket)      open; resolves when the event channel is usable. Throws Error{status, fallback?}.
-//   t.send(event)                a realtime client event (object)
-//   t.on(name, fn) -> off        'event' (server event object) · 'status' ({state,...}) · 'close' ({code, why})
-//   await t.close()              idempotent; hangs up / closes and releases mic + peer
-//   t.start()                    the person's Start tap (the only room-speaks-first trigger)
-//   t.setPhase(name)             tell the SERVER the phase; it re-pins instructions + tools (browser never sends session.update)
-//   t.scene(text)                a scene note (labels + observation ids; no frames, no landmarks) as context, never a response
-//   audio hooks:                 t.kind ('webrtc' | 'relay-ws'); webrtc: opts.mic (MediaStream) + 'remote-track' event;
-//                                relay-ws: t.appendAudio(base64Pcm16) + 'audio' event (base64 PCM16 delta)
-//
-// PRIMARY  WebRtcTransport: SDP offer -> POST ${origin}/v1/realtime/calls (Bearer ticket, x-chamber-device) -> raw SDP 201
-//          + Location handle. Media browser<->model direct. Events on the 'oai-events' datachannel. Server-side the core
-//          holds a sideband WS (?call_id=) for pinning, tool gating, cutoff, ledger. Hangup = POST <Location>/hangup with the
-//          SAME Authorization: Bearer <ticket> + x-chamber-device as the call (the gateway accepts the call's ticket past its
-//          exp for this; a relative Location resolves against the origin). Never a call to Location itself.
-// FALLBACK RelayWsTransport: WS ${wsOrigin}/v1/realtime, subprotocols ['chamber.v1', 'ticket.<t>', 'device.<id>'].
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 class Emitter {
   constructor() { this.subs = {}; }
@@ -25,10 +25,10 @@ class Emitter {
 }
 const err = (msg, extra = {}) => Object.assign(new Error(msg), extra);
 
-// The call trace: a ring buffer of the last `cap` timestamped transitions (peer + ICE states, datachannel open/close/error,
-// each fetch's PATH + status, every close/stop/hangup with its stage and why). It is what explains a dropped call.
-// It NEVER holds a ticket, a gateKey, a header, an SDP body or a password: fetches record the path only (the opaque call
-// handle masked as :h), and every string is scrubbed again on the way in (belt and braces).
+
+
+
+
 const SCRUB = /(Bearer\s*\S*|cht_[A-Za-z0-9._-]*|v=0[^]*)/g;
 const clean = (v) => (typeof v === 'string' ? v.replace(SCRUB, '[redacted]').slice(0, 160) : v);
 export const tracePath = (u) => String(u ?? '').replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, '').split(/[?#]/)[0].replace(/(\/calls\/)[^/]+/, '$1:h') || '/';
@@ -51,14 +51,14 @@ export function createTrace(cap = 200, now = () => Date.now()) {
 }
 
 export class WebRtcTransport extends Emitter {
-  // opts: { origin, device, mic?: MediaStream, RTCPeerConnection?, fetchImpl?, iceTimeoutMs?, graceMs?, trace? }
-  //   graceMs: how long a 'disconnected' peer may stay so before the call is failed (ICE often recovers); 'failed' fails at once.
+  
+  
   constructor(opts) {
     super(); this.kind = 'webrtc';
     this.o = { fetchImpl: globalThis.fetch?.bind(globalThis), RTCPeerConnection: globalThis.RTCPeerConnection, iceTimeoutMs: 3000, graceMs: 5000, ...opts };
     this.trace = this.o.trace || createTrace(); this.closed = false; this.graceTimer = null;
   }
-  async #fetch(stage, u, init) { // every fetch is traced by PATH + status only (never headers, bodies or tickets)
+  async #fetch(stage, u, init) { 
     try { const r = await this.o.fetchImpl(u, init); this.trace.push('fetch', { stage, path: tracePath(u), status: r?.status ?? 0 }); return r; }
     catch (e) { this.trace.push('fetch', { stage, path: tracePath(u), status: 0, msg: 'unreachable' }); throw e; }
   }
@@ -67,9 +67,9 @@ export class WebRtcTransport extends Emitter {
     this.trace.push('pc.connectionState', { state: st });
     if (this.closed) return;
     if (st === 'failed') { this.#clearGrace(); this.#fail(1006, 'peer failed'); return; }
-    if (st === 'closed') { this.#clearGrace(); this.#fail(1006, 'peer closed'); return; } // a peer closed under us (not by close())
+    if (st === 'closed') { this.#clearGrace(); this.#fail(1006, 'peer closed'); return; } 
     if (st === 'connected') { if (this.graceTimer) this.trace.push('pc.recovered', { state: st }); this.#clearGrace(); return; }
-    // 'connecting'/'new' after 'disconnected' keeps the armed grace running (still not connected); only 'connected' clears it.
+    
     if (st === 'disconnected' && !this.graceTimer) {
       this.trace.push('pc.grace', { ms: this.o.graceMs });
       this.graceTimer = setTimeout(() => { this.graceTimer = null; if (!this.closed && this.pc === pc && pc.connectionState !== 'connected') this.#fail(1006, `peer disconnected > ${this.o.graceMs} ms`); }, this.o.graceMs);
@@ -80,7 +80,7 @@ export class WebRtcTransport extends Emitter {
     const { origin, device, mic } = this.o;
     if (!origin) throw err('no voice gateway origin configured', { status: 0, fallback: true });
     if (!this.o.RTCPeerConnection) throw err('no RTCPeerConnection', { status: 0, fallback: true });
-    this.ticket = ticket; // kept in memory only, for the hangup's Authorization (same caller as the call)
+    this.ticket = ticket; 
     const pc = this.pc = new this.o.RTCPeerConnection();
     try {
       if (mic) for (const tr of mic.getAudioTracks()) pc.addTrack(tr, mic);
@@ -102,8 +102,8 @@ export class WebRtcTransport extends Emitter {
       } catch (e) { throw err('calls unreachable', { status: 0, fallback: true }); }
       if (r.status !== 201) { await r.text().catch(() => ''); throw err(`calls ${r.status}`, { status: r.status, fallback: r.status >= 500 || r.status === 404 }); }
       const ct = r.headers.get('content-type') || '', loc = r.headers.get('location') || '';
-      // the opaque handle; hangup = <location>/hangup. Kept BEFORE body validation so a bad answer still frees the call.
-      // The Bearer ticket follows this Location (hangup, phase), so it must stay on the gateway's own origin.
+      
+      
       const where = loc ? new URL(loc, origin) : null;
       if (where && where.origin !== new URL(origin).origin) throw err('calls Location is off the gateway origin', { status: 201, fallback: true });
       if (where) this.location = where.toString();
@@ -125,12 +125,12 @@ export class WebRtcTransport extends Emitter {
   }
   send(ev) { if (this.dc?.readyState === 'open') { this.dc.send(JSON.stringify(ev)); return true; } return false; }
   start() { return this.send({ type: 'response.create' }); }
-  // scene notes (labels + ids only) as context, no response. [unverified: system-role conversation items]
+  
   scene(text) { return this.send({ type: 'conversation.item.create', item: { type: 'message', role: 'system', content: [{ type: 'input_text', text: `[scene] ${text}` }] } }); }
-  // Phase re-pin: POST <Location>/phase (the Location the 201 returned, already resolved against the origin; the same
-  // place hangup goes), body {phase, why} + 'name' (kept ONLY because the local mock voice/server/server.mjs reads .name;
-  // srv2 reads {phase, why}). No fallback to any other path. Resolves {ok, status, why?}; never throws.
-  // A gateway without the route answers 404: the caller (session.js) traces that as a visible degrade, not a crash.
+  
+  
+  
+  
   async setPhase(name, why = '') {
     if (!this.location) return { ok: false, status: 0, why: 'no call handle' };
     try {
@@ -158,7 +158,7 @@ export class WebRtcTransport extends Emitter {
 }
 
 export class RelayWsTransport extends Emitter {
-  // opts: { wsOrigin, device, WebSocketImpl?, wsOptions? (node tests only: e.g. {headers:{Origin}}) }
+  
   constructor(opts) { super(); this.kind = 'relay-ws'; this.o = { WebSocketImpl: globalThis.WebSocket, ...opts }; this.trace = this.o.trace || createTrace(); this.closed = false; }
   connect(ticket) {
     const { wsOrigin, device, WebSocketImpl, wsOptions } = this.o;
@@ -180,13 +180,13 @@ export class RelayWsTransport extends Emitter {
   send(ev) { if (this.ws?.readyState === 1) { this.ws.send(JSON.stringify(ev)); return true; } return false; }
   start() { return this.send({ type: 'chamber.start' }); }
   setPhase(name) { return this.send({ type: 'chamber.phase', name }); }
-  scene(text) { return this.send({ type: 'chamber.scene', text }); } // the relay wraps it as a context item, never a response
+  scene(text) { return this.send({ type: 'chamber.scene', text }); } 
   appendAudio(b64) { return this.send({ type: 'input_audio_buffer.append', audio: b64 }); }
   async close(why = 'close') { if (this.closed) return; this.closed = true; this.trace.push('close', { stage: 'transport', why }); try { this.ws?.close(1000); } catch {} }
 }
 
-// Primary then fallback. A fresh single-use ticket per attempt (a ticket = one upstream session).
-// getTicket: async () => ticketString.  Returns the connected transport.
+
+
 export async function connectWithFallback({ getTicket, primary, fallback, onFallback = () => {} }) {
   if (primary) {
     try { await primary.connect(await getTicket()); return primary; }

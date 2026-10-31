@@ -1,6 +1,6 @@
-// Curves (DYNAMIC_LAYER.md §3, v1): one pure function from a 0..1 source value to a target range. No imports.
-// Spec form: undefined | 'lin' | 'exp' | 'log' | 's' | 'pow'  or  { name, k, p, c, w, invert, deadzone: { c, d } }.
-// A bare string (or undefined) takes EXACTLY today's mapRange float path, so preset `default` is byte-identical.
+
+
+
 export const CURVES = ['lin', 'exp', 'log', 's', 'pow'];
 export const CURVE_MODIFIERS = ['invert', 'deadzone'];
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -8,7 +8,7 @@ const smooth = (x) => { const u = clamp01(x); return u * u * (3 - 2 * u); };
 
 export const curveName = (spec) => (spec == null ? 'lin' : typeof spec === 'string' ? spec : spec.name ?? 'lin');
 
-// shape f(t) for the non-exp curves (exp is applied on the range, not on t)
+
 function shape(name, t, spec) {
   if (name === 'log') { const k = spec?.k ?? 9; return Math.log(1 + k * t) / Math.log(1 + k); }
   if (name === 's') {
@@ -16,14 +16,14 @@ function shape(name, t, spec) {
     return hi > lo ? (smooth((t - c) / w + 0.5) - lo) / (hi - lo) : t;
   }
   if (name === 'pow') return Math.pow(t, spec?.p ?? 2);
-  return t; // lin
+  return t; 
 }
 
 export function mapCurve(spec, range, v) {
   const [lo, hi] = range;
   let t = clamp01(v);
   if (spec == null || typeof spec === 'string') {
-    // today's mapRange, copied literally (float order matters)
+    
     if (spec === 'exp') return lo * Math.pow(hi / lo, t);
     if (spec == null || spec === 'lin') return lo + (hi - lo) * t;
     return lo + (hi - lo) * shape(spec, t);
@@ -39,7 +39,7 @@ export function mapCurve(spec, range, v) {
   return lo + (hi - lo) * shape(name, t, spec);
 }
 
-// validation (a refusal reason, or null)
+
 export function curveError(spec, range) {
   const name = curveName(spec);
   if (!CURVES.includes(name)) return `unknown curve '${name}' (known: ${CURVES.join(', ')})`;
@@ -53,10 +53,10 @@ export function curveError(spec, range) {
   return null;
 }
 
-// How the agency probe compares source and param (conductor.js): exp in log space; invert flips the expected sign.
+
 export const curveProbe = (spec) => ({ log: curveName(spec) === 'exp', sign: spec && typeof spec === 'object' && spec.invert ? -1 : 1 });
 
-// inverse (target value -> 0..1 position), for console bars. Monotone curves only (all of v1).
+
 export function curvePos(spec, range, y) {
   const [lo, hi] = range;
   if (curveName(spec) === 'exp') return Math.log(Math.max(y, 1e-6) / lo) / Math.log(hi / lo);

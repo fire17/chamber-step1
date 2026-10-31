@@ -1,24 +1,24 @@
-// The session recorder (browser). READ-ONLY on the room: it subscribes to the bus (bus.on, including the loop's
-// 'frame' event, one per unpaused step, judge/HOOK.md H3) and reads the debug hook's getters (window.__chamber.live /
-// rms / features); it never emits, never calls a verb, never touches audio. It records a `chamber.session/v0` record (see session-log.js) that the judge scores
-// (judge/judge.mjs) and the replay re-feeds (judge/replay.mjs).
-//
-// Use (console, or a <script type="module"> the integrator adds, see HOOK.md):
-//   const { startRecorder } = await import('./judge/recorder.js');
-//   const rec = startRecorder();          // attaches to window.__chamber
-//   ... play ...
-//   rec.download();                       // saves chamber-session-<time>.json
-//   rec.stop(); rec.record()              // or take the object directly
+
+
+
+
+
+
+
+
+
+
+
 import { createSessionLog } from './session-log.js';
 
 export function startRecorder({ chamber = globalThis.__chamber, soundEvery = 0.25, maxFrames = 20 * 60 * 30, meta = {} } = {}) {
   if (!chamber?.bus) throw new Error('recorder: window.__chamber is not ready (load the room first)');
   const bus = chamber.bus;
   const log = createSessionLog(bus, { bindings: chamber.bindings ?? bus.state.bindings, meta: { kind: 'browser', url: location.href, userAgent: navigator.userAgent, startedAt: new Date().toISOString(), ...meta } });
-  // H3 (app.js loop): one bus 'frame' {dt, dr} per unpaused loop step, emitted after the conductor stepped. That IS
-  // the input stream the replay re-feeds, so the recorder takes it as is: no rAF of its own, no drift, no duplicates.
-  // Sound is sampled inside the frame emit, i.e. before this frame's layer.compute / pad.apply: one frame (~16 ms)
-  // staler than the old post-loop rAF sample. A build without H3 emits no 'frame': record() then warns (0 frames).
+  
+  
+  
+  
   let nextSound = 0, stopped = false, dropped = 0, errors = 0, warned = false;
   const r = (v) => (typeof v === 'number' ? +v.toFixed(4) : v);
   const onFrame = (d) => { try { step(d); } catch (e) { if (!errors++) console.warn('[recorder] frame failed (counted in meta.frameErrors)', e); } };

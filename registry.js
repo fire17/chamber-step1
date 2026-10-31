@@ -1,13 +1,13 @@
-// The SOURCE and TARGET registries (DYNAMIC_LAYER.md §2). Pure data + validation, no DOM. EVERY dimension the
-// providers compute is registered (hand.js, body.js, app.js derived, face.js), mapped or not: an agent / the
-// console / the DJ can wire any of them at runtime through the map.* verbs. Registered-but-unmapped is fine.
+
+
+
 import { MAPPINGS } from './mappings.js';
 import { FACE_KEYS } from './face.js';
 import { CURVES, CURVE_MODIFIERS, curveError } from './curves.js';
 
-// ---------------- sources ----------------
-// polarity 'bi' = 0..1 with 0.5 = neutral; 'uni' = 0..1 with 0 = neutral. kind: felt (a person can feel and
-// steer it), latent (derived / slow, e.g. energy), default_only (bookkeeping; not offered to agents).
+
+
+
 const S = (id, o = {}) => ({ id, group: id.split('.')[0], range: [0, 1], polarity: 'uni', neutral: 0, rate: 15, kind: 'felt', bindable: true, nullable: false, label: id, ...o });
 const bi = { polarity: 'bi', neutral: 0.5 };
 const hand = (g, who) => [
@@ -49,9 +49,9 @@ export const SOURCES = Object.freeze([
 ].map(Object.freeze));
 export const SOURCE = Object.freeze(Object.fromEntries(SOURCES.map((s) => [s.id, s])));
 
-// ---------------- targets ----------------
-// safe = the hard limits ANY mapping range must sit inside (wider than the default range: POOL bindings reach
-// past the static ranges on purpose). apply = how synth.js sets it: params | derived | macro | always | zones.
+
+
+
 const SAFE = {
   cutoff: [40, 12000], detune: [0, 60], shimmer: [0, 0.4], pan: [-1, 1], swell: [0, 1], reverbWet: [0, 1], octave: [0, 0.6],
   trip: [0, 1], feedback: [0, 0.85], field: [-1, 1], resonance: [0.1, 20], wah: [80, 8000], wahDepth: [0, 18], floor: [0, 0.5],
@@ -63,10 +63,10 @@ export const TARGETS = Object.freeze(Object.entries(MAPPINGS).map(([id, m]) => O
   apply: APPLY[id] ?? 'params', label: m.label, ...(id === 'voicing' ? { zones: m.zones } : {}),
 })));
 export const TARGET = Object.freeze(Object.fromEntries(TARGETS.map((t) => [t.id, t])));
-// every registered target must have an audio kind (boot assert)
+
 for (const t of TARGETS) if (t.id !== 'voicing' && !t.safe) throw new Error(`registry: target '${t.id}' has no safe range`);
 
-// ---------------- validation (clean refusal reasons, never a throw) ----------------
+
 const TERM_KEYS = ['s', 'w', 'inv', 'mag', 'idle', 'opt', 'ctr'];
 const finite = (x) => typeof x === 'number' && Number.isFinite(x);
 export function srcError(src, { agent = false, allowNull = false } = {}) {
@@ -92,7 +92,7 @@ export const MAP_FIELDS = {
   static: ['src', 'mag', 'range', 'curve', 'rest', 'glide', 'restGlide', 'weight', 'label', 'unit', 'hysteresis', 'zones'],
   binding: ['src', 'mag', 'target', 'range', 'curve', 'weight', 'hold', 'cooldown', 'fadeIn', 'fadeOut', 'label'],
 };
-// def: the FULL resulting mapping (after a patch). kind 'static' | 'binding'. agent = by is not dev / cue.
+
 export function mapError(def, kind, { agent = false } = {}) {
   if (kind !== 'static' && kind !== 'binding') return `kind must be 'static' or 'binding'`;
   if (!def || typeof def.id !== 'string' || !def.id) return 'needs an id';

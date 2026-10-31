@@ -1,17 +1,17 @@
-// Scene notes: what the Director can see, as short TEXT. This is the only seeing the voice has today. A look: slot
-// (look.js: a rate-limited still frame on request) is designed but NOT wired (voice/CONVERSATION.md §1a-1b).
-// It is built from bus events that already exist: BodyStory obs.open / obs.close (labels and
-// observation ids: body, hands and face channels alike), the room's own acts (what just changed), the phase, and the
-// conductor's readiness READOUTS. It never carries frames, landmarks, coordinates or the readiness `marks`
-// (reference numbers are never offered as thresholds). It is sent at most once every FLOW.scene.minGapS, and only
-// when the text changed. It is context only and never asks for a response.
+
+
+
+
+
+
+
 import { FLOW } from './flow.js';
 
-const ROOM_VERBS = /^(map\.|binding\.|undo$|stimulus$|phase\.set$)/; // what the room did that the person can feel
+const ROOM_VERBS = /^(map\.|binding\.|undo$|stimulus$|phase\.set$)/; 
 const short = (v) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').slice(0, 48);
 
 export class SceneFeed {
-  // bus: step2 Bus (on/state). send(text): transport.scene. now(): seconds. def: FLOW.scene. timers injectable for tests.
+  
   constructor({ bus, send, now = () => Date.now() / 1000, def = FLOW.scene, setTimer = setTimeout, clearTimer = clearTimeout }) {
     Object.assign(this, { bus, send, now, def, setTimer, clearTimer, open: new Map(), recentActs: [], last: '', lastT: -Infinity, timer: null, offs: [] });
     if (!bus?.on) return;
@@ -40,7 +40,7 @@ export class SceneFeed {
     return parts.filter(Boolean).join(' | ').slice(0, d.maxChars);
   }
   poke() {
-    if (this.timer) return; // one pending flush at a time
+    if (this.timer) return; 
     const wait = Math.max(0, this.lastT + this.def.minGapS - this.now());
     this.timer = this.setTimer(() => this.flush(), wait * 1000);
   }

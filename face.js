@@ -1,36 +1,36 @@
-// Face blendshapes -> face features. Pure functions, no DOM (node-testable), in the hand.js idiom.
-// Input: one FaceLandmarker result with `outputFaceBlendshapes: true` (result.faceBlendshapes[0].categories, 52
-// ARKit-style scores 0..1), or that categories array, or a plain { name: score } map.
-// Output (all smoothed, all clamped):
-//   jawOpen, smile, squint, blink, browUp, pucker, cheekPuff   0..1   (0 = neutral face)
-//   gazeX, gazeY                                               -1..1  (signed; 0 = looking at the screen)
-//   lookX, lookY                                               0..1   (the same gaze as bipolar sources, 0.5 = centre,
-//                                                                      so mappings.js blends can read them like body.*)
-// The raw blendshape scores are compressed and person-dependent (a resting face already shows some squint and
-// blink), so each feature is normalised from a raw [lo, hi] window, like FEATURES in mappings.js. [guess] values,
-// to be tuned on real faces. Kept HERE (not in mappings.js) for Phase 1 only; FACE_INTEGRATION.md proposes moving
-// them next to FEATURES once the other lane's mappings.js edit has landed.
+
+
+
+
+
+
+
+
+
+
+
+
 export const FACE = {
-  jawOpenRaw:   [0.03, 0.55],  // jawOpen: lips together .. a sung "ah"
-  smileRaw:     [0.05, 0.70],  // mean(mouthSmileLeft, mouthSmileRight)
-  squintRaw:    [0.15, 0.70],  // mean(eyeSquintLeft, eyeSquintRight): a resting face already reads ~0.1-0.3
-  blinkRaw:     [0.20, 0.70],  // mean(eyeBlinkLeft, eyeBlinkRight): open eyes ~0.05-0.2, closed ~0.6-0.9
-  browUpRaw:    [0.05, 0.60],  // mean(browInnerUp, mean(browOuterUpLeft, browOuterUpRight))
-  puckerRaw:    [0.05, 0.70],  // mouthPucker
-  cheekPuffRaw: [0.02, 0.50],  // cheekPuff
-  gazeXRaw: 0.55,              // |eyeLook right - left| (mean of both eyes) at which gazeX saturates
-  gazeYRaw: 0.45,              // |eyeLook up - down| at which gazeY saturates
-  // Which way is screen-right. MediaPipe names Left/Right per its own face convention; the player sees a MIRROR.
-  // +1 assumes "...Left" = the subject's left eye, so looking toward the subject's left = screen-left = gazeX < 0.
-  // NOT verified on a real face: one live look-left / look-right check fixes the sign (flip to -1 if inverted).
+  jawOpenRaw:   [0.03, 0.55],  
+  smileRaw:     [0.05, 0.70],  
+  squintRaw:    [0.15, 0.70],  
+  blinkRaw:     [0.20, 0.70],  
+  browUpRaw:    [0.05, 0.60],  
+  puckerRaw:    [0.05, 0.70],  
+  cheekPuffRaw: [0.02, 0.50],  
+  gazeXRaw: 0.55,              
+  gazeYRaw: 0.45,              
+  
+  
+  
   gazeSign: 1,
-  smooth: 0.5,                 // EMA k per update, like hand.js smoothFeatures
-  smoothFast: { blink: 0.85 }, // a blink lasts ~100-150 ms: smoothing it like the rest would erase it
-  blinkOn: 0.6, blinkOff: 0.3, // blink onset hysteresis (on the normalised blink) for the optional soft tick
+  smooth: 0.5,                 
+  smoothFast: { blink: 0.85 }, 
+  blinkOn: 0.6, blinkOff: 0.3, 
 };
 
 export const FACE_KEYS = ['jawOpen', 'smile', 'squint', 'blink', 'browUp', 'pucker', 'cheekPuff', 'gazeX', 'gazeY', 'lookX', 'lookY'];
-// The neutral face (also what an absent face resolves to when a caller wants values instead of null).
+
 export const FACE_NEUTRAL = Object.freeze({ jawOpen: 0, smile: 0, squint: 0, blink: 0, browUp: 0, pucker: 0, cheekPuff: 0, gazeX: 0, gazeY: 0, lookX: 0.5, lookY: 0.5 });
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -39,7 +39,7 @@ const fin = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const norm = (v, [lo, hi]) => clamp01((v - lo) / (hi - lo));
 const mean = (...xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
-// Any accepted input -> { name: score } (missing names read 0), or null when there is no face.
+
 export function blendshapeMap(input) {
   if (input == null) return null;
   let cats = input;
@@ -48,7 +48,7 @@ export function blendshapeMap(input) {
     if (!first) return null;
     cats = first.categories ?? first;
   }
-  if (Array.isArray(cats) && cats.length && Array.isArray(cats[0]?.categories)) cats = cats[0].categories; // [Classifications]
+  if (Array.isArray(cats) && cats.length && Array.isArray(cats[0]?.categories)) cats = cats[0].categories; 
   if (Array.isArray(cats)) {
     if (!cats.length) return null;
     const m = {};
@@ -59,12 +59,12 @@ export function blendshapeMap(input) {
   return null;
 }
 
-// The pure feature function: one frame's blendshapes -> features, or null when there is no face.
+
 export function faceFeatures(input, cfg = FACE) {
   const b = blendshapeMap(input);
   if (!b) return null;
   const g = (k) => clamp01(fin(b[k]));
-  // gaze, per eye in the subject's frame: looking toward the subject's LEFT = left eye OUT + right eye IN.
+  
   const towardLeft = mean(g('eyeLookOutLeft'), g('eyeLookInRight'));
   const towardRight = mean(g('eyeLookInLeft'), g('eyeLookOutRight'));
   const up = mean(g('eyeLookUpLeft'), g('eyeLookUpRight'));
@@ -84,7 +84,7 @@ export function faceFeatures(input, cfg = FACE) {
   };
 }
 
-// Light EMA, same idiom as hand.js smoothFeatures; blink gets a faster constant. prev null = take next as-is.
+
 export function smoothFace(prev, next, k = FACE.smooth, fast = FACE.smoothFast) {
   if (!next) return null;
   if (!prev) return { ...next };
@@ -97,9 +97,9 @@ export function smoothFace(prev, next, k = FACE.smooth, fast = FACE.smoothFast) 
   return out;
 }
 
-// Per-face state: smoothing across frames + a blink onset edge (hysteresis) for an optional soft percussive tick.
-// update(result) -> { present, f, blinkOnset }. A missing face resets the smoothing (re-acquired faces don't glide
-// in from stale values); the caller holds presence (FACE_HOLD_MS in the proposal), as it does for hands.
+
+
+
 export class FaceTracker {
   constructor(cfg = FACE) { this.cfg = cfg; this.reset(); }
   reset() { this.f = null; this.blinkHeld = false; this.blinks = 0; }
@@ -114,9 +114,9 @@ export class FaceTracker {
   }
 }
 
-// Build a FaceLandmarker-shaped result from player-facing params (0..1, gazeX/Y -1..1), the inverse of
-// faceFeatures through the default windows: used by tests and by a future injectFace() debug hook so injected
-// faces go through the SAME feature path as real ones (as synthLandmarks / synthPose do).
+
+
+
 export function synthBlendshapes({ jawOpen = 0, smile = 0, squint = 0, blink = 0, browUp = 0, pucker = 0, cheekPuff = 0, gazeX = 0, gazeY = 0 } = {}, cfg = FACE) {
   const un = (v, [lo, hi]) => lo + clamp01(v) * (hi - lo);
   const gx = (clamp11(gazeX) * cfg.gazeXRaw) / cfg.gazeSign, gy = clamp11(gazeY) * cfg.gazeYRaw;
@@ -127,7 +127,7 @@ export function synthBlendshapes({ jawOpen = 0, smile = 0, squint = 0, blink = 0
     eyeBlinkLeft: un(blink, cfg.blinkRaw), eyeBlinkRight: un(blink, cfg.blinkRaw),
     browInnerUp: un(browUp, cfg.browUpRaw), browOuterUpLeft: un(browUp, cfg.browUpRaw), browOuterUpRight: un(browUp, cfg.browUpRaw),
     mouthPucker: un(pucker, cfg.puckerRaw), cheekPuff: un(cheekPuff, cfg.cheekPuffRaw),
-    // gaze toward screen-right (gx > 0): the "toward right" pair carries it, the other pair rests at 0
+    
     eyeLookInLeft: Math.max(0, gx), eyeLookOutRight: Math.max(0, gx),
     eyeLookOutLeft: Math.max(0, -gx), eyeLookInRight: Math.max(0, -gx),
     eyeLookUpLeft: Math.max(0, gy), eyeLookUpRight: Math.max(0, gy),

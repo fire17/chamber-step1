@@ -1,19 +1,19 @@
-// The beat layer: synthesized drums on the audio clock at the progression's tempo (a 100 ms look-ahead
-// scheduler; no samples, nothing fetched). There is NO level classifier: the beat is a binding TARGET
-// (`beat`, density 0..1) like any other. The pool's groove->beat binding drives it from body.groove, so it
-// arms when movement builds (the conductor's DJ arms it on the 'movement building' observation) and follows
-// the groove continuously. Every voice fades in over its own density window (BEAT.voices[v] = [from, to],
-// a smoothstep), so a little groove is a soft kick and a lot is a full kit. Pure math is exported for tests.
+
+
+
+
+
+
 import { BEAT, PROGRESSION } from './mappings.js';
 
 export const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-// density -> per-voice gain (0..1). Pure.
+
 export const voiceGains = (density, voices = BEAT.voices) => Object.fromEntries(Object.entries(voices).map(([k, [a, b]]) => [k, smoothstep(a, b, density)]));
 
-// One bar of 16ths per voice: per-step velocity (0 = rest). A fixed groove; density decides how much of it sounds.
+
 const PAT = {
   kick:  [1, 0, 0, 0, 0, 0, 0, 0, 0.9, 0, 0, 0, 0, 0, 0, 0],
-  ghost: [0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0.6, 0, 0, 0, 0, 0.4],  // extra soft kicks: the groove thickens
+  ghost: [0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0.6, 0, 0, 0, 0, 0.4],  
   shake: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
   hat:   [0.6, 0, 0.9, 0.4, 0.6, 0, 0.9, 0.4, 0.6, 0, 0.9, 0.4, 0.6, 0, 0.9, 0.5],
   clap:  [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
@@ -24,8 +24,8 @@ export class BeatSynth {
     this.ctx = ctx; this.density = 0; this.step = 0; this.next = null; this.hits = 0;
     this.bus = ctx.createGain(); this.bus.gain.value = BEAT.gain;
     this.bus.connect(out);
-    const s = ctx.createGain(); s.gain.value = 0.18; this.bus.connect(s); s.connect(send); // a little room on the drums
-    // one second of deterministic white noise, shared by shaker / hat / clap
+    const s = ctx.createGain(); s.gain.value = 0.18; this.bus.connect(s); s.connect(send); 
+    
     const n = ctx.sampleRate, b = ctx.createBuffer(1, n, n), d = b.getChannelData(0);
     let seed = 0x1234567; for (let i = 0; i < n; i++) { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; d[i] = ((seed >>> 0) / 4294967296) * 2 - 1; }
     this.noise = b;
@@ -34,13 +34,13 @@ export class BeatSynth {
     this.density = Math.max(0, Math.min(1, d || 0));
     if (this.density > 0.01 && this.next == null) { this.next = this.ctx.currentTime + 0.05; this.step = 0; }
   }
-  // call every frame: schedules any steps inside the look-ahead window
+  
   pump() {
     if (this.next == null) return;
     const ctx = this.ctx, sixteenth = 60 / PROGRESSION.bpm / 4;
-    if (this.next < ctx.currentTime - 0.2) this.next = ctx.currentTime + 0.02; // resumed after a pause: re-sync
+    if (this.next < ctx.currentTime - 0.2) this.next = ctx.currentTime + 0.02; 
     while (this.next < ctx.currentTime + 0.1) {
-      if (this.density <= 0.01) { this.next = null; return; } // no groove: stop scheduling (the grid restarts on arm)
+      if (this.density <= 0.01) { this.next = null; return; } 
       const i = this.step % 16, swing = i % 2 ? sixteenth * 0.12 : 0, g = voiceGains(this.density);
       for (const k of Object.keys(PAT)) { const v = PAT[k][i] * g[k]; if (v > 0.02) this[k](this.next + swing, v); }
       this.next += sixteenth; this.step++;
