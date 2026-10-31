@@ -1,0 +1,12 @@
+html, body { margin: 0; height: 100%; background: #07060a; color: #f3e9dc;
+  font-family: system-ui, -apple-system, "Segoe UI", "Arial Hebrew", Arial, sans-serif; }
+body { display: grid; place-items: center; }
+#gate-form { display: flex; flex-direction: column; gap: 14px; align-items: stretch; width: min(320px, calc(100vw - 32px)); }
+#gate-form[hidden] { display: none; }
+label { font-size: 20px; text-align: center; }
+input { font-size: 18px; padding: 12px 14px; border-radius: 12px; border: 1px solid #3a3040;
+  background: #120f16; color: inherit; text-align: center; }
+button { font-size: 18px; padding: 12px; border-radius: 999px; border: 0; cursor: pointer;
+  background: #ffc478; color: #1a1206; font-weight: 600; }
+button:disabled { opacity: .6; cursor: default; }
+#gate-msg { min-height: 1.4em; text-align: center; color: #ff9a8a; margin: 0; }

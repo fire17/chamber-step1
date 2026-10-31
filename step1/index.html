@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="he" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; connect-src 'self'; worker-src 'self' blob:; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; style-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%23ffc478%22/%3E%3C/svg%3E">
+  <title>Chamber</title>
+  <link id="gate-css" rel="stylesheet" href="gate.css">
+</head>
+<body>
+  <form id="gate-form" dir="rtl" lang="he" autocomplete="off" hidden>
+    <label for="gate-pw">סיסמה</label>
+    <input id="gate-pw" type="password" autocomplete="current-password" required>
+    <button id="gate-btn" type="submit">כניסה</button>
+    <p id="gate-msg" role="status"></p>
+  </form>
+  <script type="module" src="gate.js"></script>
+</body>
+</html>
