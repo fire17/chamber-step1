@@ -34,6 +34,8 @@ const ROLE_TAIL = Object.freeze([
   'Be cheeky, warm and truthful. Behave from what this place is, not from a script: never brutal, never a game with levels or scores.',
   'You can shape the sound with the mapping tools; use them sparingly and say plainly what you invite the person to try.',
   'Keep acting and answering quickly while the person holds on; move on (switch_phase) only when you judge they have let go and this part is used up. Phases are fluid: you may go back too, always saying why.',
+  
+  'When the moment fits, invite the person to move and let them discover that the room answers their body: one binding demonstration, a movement of theirs answered by sound, chosen from context, never in a fixed order or on a timer. Only the room, once it has measured their hands or body moving the sound, tells them it is them: never say it yourself.',
 ]);
 
 
@@ -92,27 +94,7 @@ export const FLOW = Object.freeze({
     }),
     steps: Object.freeze([
       'Only when the session has just begun and nothing has been said yet (if you return to this phase later, or the call reconnects, skip this whole opening). Your first turn: say these words exactly, once, spoken as written in {wordsLang}, adding nothing before them: "{words}" After them, follow the language the person speaks.',
-      'Prove the loop by handing it to the room: right after your welcome the room plays a sound, invites them in its own short caption to move their fingertips slowly, and only once it has measured their hands moving the sound tells them, in its caption, that it is them. That moment is the room\'s alone: never say it, read it out or say it first. When it has passed, ask what they hear.',
-      'Then say in one line what this room does, and ask what brought them here.',
     ]),
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    gate: Object.freeze({
-      name: 'opening',           
-      waitFor: 'the spoken welcome played out',
-      while: Object.freeze({ event: 'voice', field: 'phase', in: Object.freeze(['connecting', 'live']) }),
-      spoken: Object.freeze({ event: 'say', match: Object.freeze({ cue: 'voice', spoken: true }) }),
-      quiet: Object.freeze({ sensor: 'voiceOut', s: 1.2 }),
-      maxWaitS: 30,
-    }),
   }),
   
   
@@ -400,7 +382,7 @@ export const PERSONA = personaFor();
 const LANG_NAMES = Object.freeze({ en: 'English', he: 'Hebrew' });
 const fill = (s, o, lang) => s.replace(/\{(\w+)\}/g, (_, k) => (k === 'wordsLang' ? LANG_NAMES[lang] : k === 'words' ? o.words[lang] : o[k] ?? ''));
 export const openingFor = (phase, o = FLOW.opening, lang = FLOW.lang) => (o && o.phase === phase
-  ? `Opening (the first minute of the session): ${o.steps.map(textOf).filter(Boolean).map((s, i) => `(${String.fromCharCode(97 + i)}) ${fill(s, o, langOf(lang))}`).join(' ')}` : '');
+  ? `Opening: ${o.steps.map(textOf).filter(Boolean).map((s, i) => `(${String.fromCharCode(97 + i)}) ${fill(s, o, langOf(lang))}`).join(' ')}` : '');
 
 
 

@@ -251,16 +251,9 @@ export const BEAT = {
 
 export const CUES = {
   opening: [
-    { id: 'welcome', gate: 'opening', hold: 3.5 }, 
-    { id: 'chime', say: 'עכשיו נשמע צליל', en: "Now we'll hear a sound", show: 3.2,
-      acts: [{ verb: 'stimulus', args: { what: 'chime', claim: 'a1' }, at: 1.6 }],
-      until: { probe: 'audible', claim: 'a1', timeout: 3, repair: [{ verb: 'stimulus', args: { what: 'chime', claim: 'a1', repair: true } }], onFail: 'strip' },
-      hold: 3 },
-    { id: 'fingertips', say: 'עכשיו הזיזו לאט את קצות האצבעות', en: 'Now move your fingertips, slowly', show: 4.5,
-      acts: [{ verb: 'binding.arm', args: { id: 'spread→cutoff', claim: 'a2', force: true } }],
-      until: { probe: 'agency', claim: 'a2', binding: 'spread→cutoff', timeout: 60, reoffer: 25, onFail: 'strip' } },
-    { id: 'thatsyou', say: 'זה אתם.', en: "That's you.", show: 3.2, requires: 'a2', hold: 4.5 },
-    { id: 'ask', say: 'מה אתם שומעים?', en: 'What do you hear?', show: 5, hold: 7 },
+    { id: 'audible', on: ['stimulus', 'body.oneshot'], what: 'chime', until: { probe: 'audible', claim: 'a1', onFail: 'strip' } },
+    { id: 'thatsyou', on: ['binding.arm'], until: { probe: 'agency', claim: 'a2', timeout: 60, onFail: 'strip' },
+      say: 'זה אתם.', en: "That's you.", show: 3.2, requires: 'a2' },
   ],
 };
 

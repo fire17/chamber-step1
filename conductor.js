@@ -60,7 +60,7 @@ export class Conductor {
     Object.assign(this, { bus, bindings, story, sensors, def });
     this.layer = layer || new MappingLayer({ bindings });
     this.mapCount = {}; 
-    this.verbs = {}; this.policies = {}; this.gates = {}; 
+    this.verbs = {}; this.policies = {};
     this.cues = JSON.parse(JSON.stringify(def.CUES)); 
     this.registerCore();
     for (const ev of def.CONDUCTOR.wakeOn) bus.on(ev, (d) => this.#wake(ev, d));
@@ -69,10 +69,11 @@ export class Conductor {
   reset() {
     this.t = 0; this.run = 0; this.n = 0; this.due = {}; this.firm = {}; this.nextTurn = 0; this.woke = [];
     this.ahead = []; this.expects = {}; this.traces = this.traces || []; this.lastMoveT = null; this.mapCount = {};
-    this.bus.state.phase = null; this.bus.state.cue = null; this.bus.state.claims = {}; this.bus.state.off = {};
-    this.bus.state.oneshots = []; this.shotT = new Map(); this.shotObs = new Map(); 
     
-    for (const g of Object.values(this.gates || {})) if (!g.done && g.spokenAt != null) Object.assign(g, { spokenAt: 0, quietSince: null });
+    
+    
+    this.bus.state.phase = null; this.bus.state.cue = { active: {}, done: {} }; this.bus.state.claims = {}; this.bus.state.off = {};
+    this.bus.state.oneshots = []; this.shotT = new Map(); this.shotObs = new Map(); 
     this.#setPhase(this.def.FIRST_PHASE, 'boot', 'first phase');
   }
   register(name, fn) { this.verbs[name] = fn; }
@@ -88,7 +89,7 @@ export class Conductor {
     this.bus.state.t = this.t; this.bus.state.runT = this.run;
     if ((this.bus.state.sense?.energy ?? 0) >= (this.def.DJ ?? DJ).stillBelow) this.lastMoveT = this.t; 
     while (this.ahead.length && this.ahead[0].due <= this.t) { const a = this.ahead.shift(); a.trace.fired.push(this.#exec(a.act, a.by, a.t0)); }
-    this.#probe(); this.#gatesQuiet();
+    this.#probe();
     const debounced = this.woke.length && this.t - (this.lastTurn ?? -1e9) >= this.def.CONDUCTOR.wakeDebounce;
     if (this.t >= this.nextTurn || debounced) this.turn();
   }
@@ -157,7 +158,7 @@ export class Conductor {
     if (claim && rec.ok) {
       this.bus.claim(claim, { state: 'pending', verb: act.verb, args: act.args, firedRun: this.run, firedT: this.t, evidence: null });
       const ex = this.expects[claim]; if (ex) { ex.samples = []; ex.peak = 0; ex.onsetObs = null; }
-    }
+    } else if (rec.ok) this.#cueOn(act);
     this.bus.emit('act', rec);
     return rec;
   }
@@ -300,11 +301,27 @@ export class Conductor {
     for (const [k, id] of this.shotObs) if (!this.story.get(id)) this.shotObs.delete(k);
     return done({ ...out, ok: true, gate: 'pass', what, obs, ch: o.ch, why: `${why ? `${String(why).slice(0, 200)} · ` : ''}answers ${o.label} (${obs})` });
   }
+  
+  
+  
+  #cueOn(act) {
+    const s = this.bus.state, list = this.phaseDef.cues; if (!list || !s.cue) return;
+    for (const cue of this.cues[list] || []) {
+      if (!(cue.on || []).includes(act.verb) || !cue.until || s.cue.done[cue.id] || s.cue.active[cue.id]) continue;
+      if (cue.what && (act.args?.what ?? 'chime') !== cue.what) continue;
+      const claim = cue.until.claim, id = act.args?.id;
+      if (cue.until.probe === 'agency' && !this.bindings.def(id)) continue;
+      this.bus.claim(claim, { state: 'pending', verb: act.verb, args: act.args, firedRun: this.run, firedT: this.t, evidence: null, cue: cue.id });
+      this.expect(claim, { ...cue.until, ...(cue.until.probe === 'agency' ? { binding: id } : {}) });
+      if (cue.until.probe === 'agency') this.bindings.s[id].claim = claim; 
+      s.cue.active[cue.id] = { t0: this.t, claim };
+    }
+  }
   #setPhase(name, by, why) {
     const s = this.bus.state;
+    
+    for (const [id, a] of Object.entries(s.cue?.active || {})) { this.bus.claim(a.claim, { state: 'stripped', evidence: { why: `phase changed to ${name} before evidence` } }); s.cue.done[id] = 'stripped'; delete s.cue.active[id]; }
     s.phase = { name, since: this.t, by, why, goal: this.def.PHASES[name].goal };
-    const list = this.def.PHASES[name].cues;
-    s.cue = list ? { list, i: 0, stage: null } : null;
     this.due = {}; this.firm = {}; this.nextTurn = this.t; this.phaseTurns = 0; 
     this.bus.emit('phase', s.phase);
   }
@@ -338,42 +355,9 @@ export class Conductor {
     }
   }
 
-  
-  
-  
-  
-  
-  
-  gate(name, spec) {
-    this.gates[name]?.off();
-    const g = { name, spec, wait: false, spokenAt: null, quietSince: null, done: null }, w = spec?.while, sp = spec?.spoken, offs = [];
-    if (w) offs.push(this.bus.on(w.event, (d) => { const on = (w.in || []).includes(d?.[w.field]); if (on && !g.wait) Object.assign(g, { spokenAt: null, quietSince: null, done: null }); g.wait = on; }));
-    if (sp) offs.push(this.bus.on(sp.event, (d) => { if (g.wait && g.spokenAt == null && Object.entries(sp.match || {}).every(([k, v]) => d?.[k] === v)) g.spokenAt = this.t; }));
-    g.off = () => { offs.forEach((f) => f()); if (this.gates[name] === g) delete this.gates[name]; };
-    this.gates[name] = g;
-    return g;
-  }
-  #gatesQuiet() {
-    for (const g of Object.values(this.gates)) {
-      if (g.spokenAt == null || g.done) continue;
-      if (this.sensors[g.spec.quiet?.sensor]?.() === true) g.quietSince = null; else g.quietSince ??= this.t;
-    }
-  }
-  gateOpen(name, age) {
-    const g = this.gates[name]; if (!g) return { open: true, why: `no gate '${name}' registered` };
-    const s = g.spec;
-    if (g.done) return { open: true, why: g.done };
-    if (!g.wait) return { open: true, why: 'no words are coming' };
-    if (g.spokenAt != null && g.quietSince != null && this.t - g.quietSince >= (s.quiet?.s ?? 0)) {
-      g.done = `${s.waitFor}: line done at ${r3(g.spokenAt)} s, quiet ${s.quiet?.s ?? 0} s`; return { open: true, why: g.done };
-    }
-    const max = s.maxWaitS ?? 0;
-    if (age >= max) return { open: true, why: `fallback: not '${s.waitFor}' after ${max} s` };
-    return { open: false, why: g.spokenAt == null ? 'the spoken line is not done' : 'the voice output still sounds' };
-  }
-
   #view() { return { t: this.t, run: this.run, s: this.bus.state, phase: this.phaseDef, B: this.bindings, story: this.story }; }
 }
+
 
 
 
@@ -383,58 +367,19 @@ export const cuesPolicy = {
   wakeOn: ['probe', 'edit'],
   fn({ t, s }) {
     const c = s.cue; if (!c) return null;
-    const list = this.cues[c.list] || [];
-    const why = [];
-    for (let guard = 0; guard < list.length + 2; guard++) {
-      const cue = list[c.i];
-      if (!cue) return { why: [...why, `cue list '${c.list}' done`].join('; '), wait: this.def.CONDUCTOR.waitMax };
-      if (c.stage == null) {
-        if (cue.requires && s.claims[cue.requires]?.state !== 'verified') {
-          why.push(`skip '${cue.id}': needs claim ${cue.requires} verified (is ${s.claims[cue.requires]?.state ?? 'absent'})`);
-          c.i++; continue;
-        }
-        Object.assign(c, { stage: 'run', t0: t, repaired: false, reoffered: false, gated: false, id: cue.id });
-        const acts = [];
-        if (cue.say) acts.push({ verb: 'say', args: { text: cue.say, en: cue.en, show: cue.show, cue: cue.id } });
-        for (const a of cue.acts || []) acts.push(JSON.parse(JSON.stringify(a)));
-        if (cue.until) this.expect(cue.until.claim, cue.until);
-        why.push(`start '${cue.id}'`);
-        return { acts, why: why.join('; '), wait: cue.until || this.gates[cue.gate] ? 1 : cue.hold || 1 };
-      }
-      if (c.stage === 'run') {
-        if (cue.gate && !c.gated) {
-          const gt = this.gateOpen(cue.gate, t - c.t0);
-          if (!gt.open) return { why: [...why, `'${cue.id}': gate '${cue.gate}' holds (${gt.why})`].join('; '), wait: 1 };
-          c.gated = true; why.push(`'${cue.id}': gate '${cue.gate}' open (${gt.why})`);
-        }
-        const u = cue.until;
-        if (u) {
-          const cl = s.claims[u.claim], age = t - c.t0;
-          if (cl?.state === 'verified') { Object.assign(c, { stage: 'hold', holdEnd: t + (cue.hold || 0) }); why.push(`'${cue.id}': ${u.claim} verified ${JSON.stringify(cl.evidence)}`); continue; }
-          const failed = cl?.state === 'failed' || age >= u.timeout;
-          if (failed && u.repair && !c.repaired) {
-            c.repaired = true; c.t0 = t;
-            return { acts: JSON.parse(JSON.stringify(u.repair)), why: `'${cue.id}': ${u.claim} ${cl?.state === 'failed' ? 'failed' : 'timed out'}: repair once`, wait: 1 };
-          }
-          if (failed) {
-            this.bus.claim(u.claim, { state: 'stripped', evidence: { ...(cl?.evidence || {}), last: this.expects[u.claim]?.last, why: `${u.onFail}: no evidence in ${u.timeout} s` } });
-            Object.assign(c, { stage: 'hold', holdEnd: t + (cue.hold || 0) }); why.push(`'${cue.id}': ${u.claim} STRIPPED (no evidence): the room will not claim it`); continue;
-          }
-          if (u.reoffer && age >= u.reoffer && !c.reoffered && cue.say) {
-            c.reoffered = true;
-            return { acts: [{ verb: 'say', args: { text: cue.say, en: cue.en, show: cue.show, cue: cue.id, reoffer: true } }], why: `'${cue.id}': no evidence after ${u.reoffer} s: offer again`, wait: 1 };
-          }
-          const last = this.expects[u.claim]?.last;
-          return { why: `'${cue.id}': waiting on ${u.probe} probe for ${u.claim} (${last ? `${last.why}, r ${last.r ?? '-'}` : 'no onset yet'})`, wait: 1 };
-        }
-        Object.assign(c, { stage: 'hold', holdEnd: c.t0 + (cue.hold || 0) });
-      }
-      if (c.stage === 'hold') {
-        if (t + 1e-6 < c.holdEnd) return { why: [...why, `'${cue.id}': holding ${r3(c.holdEnd - t)} s`].join('; '), wait: c.holdEnd - t, firm: true };
-        c.i++; c.stage = null; why.push(`'${cue.id}' done`);
-      }
+    const list = this.cues[this.phaseDef.cues] || [], acts = [], why = [];
+    for (const [id, a] of Object.entries(c.active)) {
+      const cue = list.find((x) => x.id === id), u = cue?.until || {}, cl = s.claims[a.claim];
+      if (cl?.state === 'verified') {
+        c.done[id] = 'verified'; delete c.active[id]; why.push(`'${id}': ${a.claim} verified ${JSON.stringify(cl.evidence)}`);
+        if (cue?.say && (!cue.requires || s.claims[cue.requires]?.state === 'verified')) acts.push({ verb: 'say', args: { text: cue.say, en: cue.en, show: cue.show, cue: id } });
+      } else if (!cue || cl?.state === 'failed' || cl?.state === 'stripped' || (u.timeout != null && t - a.t0 >= u.timeout)) {
+        if (cl?.state !== 'stripped') this.bus.claim(a.claim, { state: 'stripped', evidence: { ...(cl?.evidence || {}), last: this.expects[a.claim]?.last, why: `${u.onFail || 'strip'}: no evidence${u.timeout != null ? ` in ${u.timeout} s` : ''}` } });
+        c.done[id] = 'stripped'; delete c.active[id]; why.push(`'${id}': ${a.claim} STRIPPED (no evidence): the room will not claim it`);
+      } else { const last = this.expects[a.claim]?.last; why.push(`'${id}': waiting on ${u.probe} probe for ${a.claim} (${last ? `${last.why}, r ${last.r ?? '-'}` : 'no onset yet'})`); }
     }
-    return { why: why.join('; '), wait: 1 };
+    const open = Object.keys(c.active).length;
+    return { acts, why: why.join('; ') || 'no check open', wait: open ? 1 : this.def.CONDUCTOR.waitMax };
   },
 };
 
@@ -482,7 +427,7 @@ export const readinessPolicy = {
     const r = {
       phase: s.phase.name, inPhase: r3(t - s.phase.since), arms: B.events.filter((e) => e.ev === 'arm' && e.t >= s.phase.since).length,
       turns: this.phaseTurns, stillFor: r3(Math.max(0, t - (this.lastMoveT ?? s.phase.since))),
-      cuesDone: !(s.cue && (this.cues[s.cue.list] || [])[s.cue.i]), next: rd.next ?? null, marks: rd.marks ?? null, edges: this.edges(),
+      cuesDone: !Object.keys(s.cue?.active || {}).length, next: rd.next ?? null, marks: rd.marks ?? null, edges: this.edges(),
     };
     s.readiness = r;
     return { why: `readiness data: ${Math.round(r.inPhase)} s, ${r.arms} arms, ${r.turns} turns, still ${Math.round(r.stillFor)} s${r.cuesDone ? '' : ', cues running'}. The phase holds until the Director judges it complete`, wait: this.def.CONDUCTOR.waitMax };

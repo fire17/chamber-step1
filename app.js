@@ -633,8 +633,8 @@ function renderConsole(now) {
   if (document.activeElement !== $('c-phase')) $('c-phase').value = s.phase?.name;
   $('c-dj').checked = !s.off?.dj;
   $('c-goal').textContent = s.phase ? `${s.phase.goal}\n(explicit: ${PHASES[s.phase.name].explicit} · policies: ${PHASES[s.phase.name].policies.join(', ')} · since t${s.phase.since.toFixed(0)} by ${s.phase.by}: ${s.phase.why})` : '';
-  const cue = s.cue && conductor.cues[s.cue.list]?.[s.cue.i];
-  $('c-cue').textContent = s.cue ? `cue ${s.cue.list}[${s.cue.i}] ${cue ? `${cue.id} · ${s.cue.stage ?? 'next'}` : 'done'}${S.caption ? ` · showing “${S.caption.en}”` : ''}` : 'no cue list in this phase';
+  const act = Object.keys(s.cue?.active || {}), done = Object.entries(s.cue?.done || {}).map(([k, v]) => `${k} ${v}`);
+  $('c-cue').textContent = `checks: ${act.length ? `reading ${act.join(', ')}` : 'none open'}${done.length ? ` · done ${done.join(', ')}` : ''}${S.caption ? ` · showing “${S.caption.en}”` : ''}`;
   if (bindings.defs.map((d) => `${d.id}|${d.target}|${JSON.stringify(d.src)}`).join(';') !== bindSig) buildBindTable();
   if (!(document.activeElement?.matches?.('#c-maps input, #c-maps select')) && JSON.stringify(layer.list().map((m) => [m.id, m.range, m.curve, m.weight, m.src, m.target])) !== mapsSig) buildMapsEditor();
   for (const tr of $('c-bind').querySelectorAll('tr[data-id]')) {
@@ -747,7 +747,3 @@ if (params.get('voice') !== '0') {
     if (voice) $('start').addEventListener('click', () => { voice.start().catch?.(() => {}); });
   });
 }
-
-
-
-if (params.get('voice') !== '0') import('./voice/flow.js').then(({ FLOW }) => { if (FLOW.opening.gate) conductor.gate(FLOW.opening.gate.name, FLOW.opening.gate); });

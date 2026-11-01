@@ -193,7 +193,7 @@ export class SceneFeed {
       `phase ${s.phase?.name ?? '?'}`,
       seen.length ? `now: ${[...(k < seen.length ? [d.more ?? 'more'] : []), ...seen.slice(seen.length - k)].join(', ')}` : 'now: nothing moving',
       a && `room just: ${this.recentActs.slice(-a).join('; ')}`,
-      rd && `readouts: ${Math.round(rd.inPhase)} s in phase, ${rd.arms} arms, ${rd.turns} turns, still ${Math.round(rd.stillFor)} s, opening cues ${rd.cuesDone ? 'done' : 'running'}`,
+      rd && `readouts: ${Math.round(rd.inPhase)} s in phase, ${rd.arms} arms, ${rd.turns} turns, still ${Math.round(rd.stillFor)} s`,
     ].filter(Boolean).join(SEP);
     let k = seen.length, a = this.recentActs.length, rest = line(k, a);
     if (!tail) return rest.slice(0, d.maxChars); 
