@@ -118,7 +118,7 @@ const CLOSING_RETRY_ON = Object.freeze(FLOW.closing.retryOn ?? ['conversation_al
 export class VoiceSession {
   
   
-  constructor({ transport, act, say, bus = null, registry = STATIC_REGISTRY, onStatus = () => {}, scene = {}, setTimer = setTimeout, clearTimer = clearTimeout, now = Date.now, presence = null, phaseGate = null, trace = null, callTrace = FLOW.callTrace || [], lang = FLOW.lang }) {
+  constructor({ transport, act, say, bus = null, registry = STATIC_REGISTRY, onStatus = () => {}, scene = {}, setTimer = (f, ms) => setTimeout(f, ms), clearTimer = (h) => clearTimeout(h), now = Date.now, presence = null, phaseGate = null, trace = null, callTrace = FLOW.callTrace || [], lang = FLOW.lang }) {
     this.lang = langOf(lang); 
     this.traceFn = typeof trace === 'function' ? trace : null; this.callTrace = callTrace; 
     Object.assign(this, { t: transport, act, say, bus, registry, onStatus, phaseSync: null, phase: FLOW.firstPhase, perResponse: new Map(), offs: [], ended: false,

@@ -26,7 +26,7 @@ export class Pacer {
   
   
   
-  constructor({ send, phase = () => FLOW.firstPhase, lang = FLOW.lang, gapMs = FLOW.pace.maxGapS * 1000, setTimer = setTimeout, clearTimer = clearTimeout, def = FLOW.pace, onAct = () => {}, toolDefs = allToolDefs(), presence = () => true }) {
+  constructor({ send, phase = () => FLOW.firstPhase, lang = FLOW.lang, gapMs = FLOW.pace.maxGapS * 1000, setTimer = (f, ms) => setTimeout(f, ms), clearTimer = (h) => clearTimeout(h), def = FLOW.pace, onAct = () => {}, toolDefs = allToolDefs(), presence = () => true }) {
     Object.assign(this, { send, phase, lang, gapMs, setTimer, clearTimer, def, onAct, toolDefs, presence, i: 0, recent: [], timer: null, playTimer: null, busy: false, speaking: false, playing: false, started: false, stopped: false });
   }
   

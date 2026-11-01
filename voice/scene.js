@@ -142,7 +142,7 @@ export function screenLine(render, viz, def = FLOW.scene.screen, max = def?.maxC
 
 export class SceneFeed {
   
-  constructor({ bus, send, now = () => Date.now() / 1000, def = FLOW.scene, setTimer = setTimeout, clearTimer = clearTimeout }) {
+  constructor({ bus, send, now = () => Date.now() / 1000, def = FLOW.scene, setTimer = (f, ms) => setTimeout(f, ms), clearTimer = (h) => clearTimeout(h) }) {
     Object.assign(this, { bus, send, now, def, setTimer, clearTimer, open: new Map(), recentActs: [], last: '', lastT: -Infinity, timer: null, offs: [] });
     if (!bus?.on) return;
     this.offs.push(bus.on('obs.open', (o) => { if (o?.id && o.kind !== 'gone') this.open.set(o.ch, o); else if (o?.kind === 'gone') this.open.delete(o.ch); this.poke(); }));
