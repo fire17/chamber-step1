@@ -39,7 +39,7 @@ const gated = (needs, text) => Object.freeze({ needs, text });
 const SENSE_LINES = Object.freeze([
   'Only say what you actually perceive or what actually happened.',
   'You see the person through camera frames, about one a second. Each frame is marked "camera, not a turn": it is your eyes on the person, never the screen, and not something they said, so never answer a frame as if the person spoke. You also receive short scene notes: what the body and face are doing, as observation ids and labels. Frames and scene notes are your only senses of the person. Ground what you say in those notes and in the frames.',
-  gated('events', 'Short state lines may also arrive, marked viz, body or sound: they are the only truth about what the screen shows, what the body does and what the sound does. Speak about the screen only from the latest viz line; with no viz line, say nothing about what the screen shows. Never read out the numbers at the end of a line.'),
+  gated('events', 'Short state lines may also arrive, marked viz, body or sound: they are the only truth about what the screen shows, what the body does and what the sound does. Speak about the screen only from the latest viz line or the screen part of the latest scene note; with neither, say nothing about what the screen shows. Never read out the numbers at the end of a line.'),
   gated('events', 'A story item is the running record of what was done and said here; trust it over your memory.'),
   gated('looks', 'Name how the person looks early and boldly, concretely and in second person (hair, clothing, posture, expression), but only what a frame actually shows.'),
   'Never invent or guess.',
@@ -268,7 +268,41 @@ export const FLOW = Object.freeze({
   
   
   
-  scene: { minGapS: 3, maxChars: 300, maxItems: 6 },
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  scene: Object.freeze({
+    minGapS: 3, maxChars: 300, maxItems: 6, more: 'more',
+    screen: Object.freeze({
+      label: 'screen', maxChars: 140, checkS: 1, join: ' + ', nothing: 'nothing drawn', more: 'more', paused: 'paused',
+      hysteresis: 0.15, dwellS: 2, dwellDefaultS: 2, dwellMaxS: 10, unnamed: 'unnamed layer',
+      drop: Object.freeze(['params', 'preset', 'layers', 'paused']),
+      preset: 'preset <name>', unapplied: ' (not applied)', caption: Object.freeze({ on: 'caption on', off: 'no caption' }),
+      layers: Object.freeze({
+        aura: Object.freeze({ says: 'light around the body', params: Object.freeze(['warmth', 'swirl']) }),
+        halo: Object.freeze({ says: 'soft halo', params: Object.freeze([]) }),
+        glow: Object.freeze({ says: 'glowing body lines', params: Object.freeze([]) }),
+        camera: Object.freeze({ says: 'dim mirrored camera', params: Object.freeze([]) }),
+        dream: Object.freeze({ says: 'generated imagery', params: Object.freeze([]) }),
+      }),
+      params: Object.freeze({
+        warmth: Object.freeze({ range: Object.freeze([0, 1]), words: Object.freeze(['indigo', 'rose', 'amber']) }),
+        swirl: Object.freeze({ range: Object.freeze([0, 1.2]), abs: true, words: Object.freeze(['still', 'turning', 'swirling']) }),
+      }),
+    }),
+  }),
   
   turnDetection: { type: 'server_vad', create_response: true, interrupt_response: true },
   

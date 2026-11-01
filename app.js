@@ -132,6 +132,17 @@ function auraLive(now) {
 }
 
 
+
+Object.defineProperty(bus.state, 'screen', { configurable: true, enumerable: false, get() {
+  if (S.phase !== 'running') return null;
+  const st = aura && aura.kind !== 'none' ? aura.stats() : null, layers = [];
+  if (video.readyState >= 2) layers.push('camera');
+  if (st) { if (st.frames > 0) layers.push('aura'); } else layers.push('halo');
+  if ((S.pose && S.body.present) || S.landmarks.length) layers.push('glow');
+  return { layers, params: st?.frames > 0 ? st.params : null, applied: !!st?.bias, caption: !!S.caption, paused: S.paused };
+} });
+
+
 const ERR = {
   denied:   ['הגישה למצלמה נחסמה. אשרו גישה למצלמה בדפדפן ונסו שוב.', 'Camera permission denied. Allow camera access in the browser, then retry.'],
   nocam:    ['לא נמצאה מצלמה.', 'No camera found. Connect a webcam, then retry.'],
