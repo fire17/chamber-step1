@@ -23,7 +23,7 @@
 
 
 
-import { FLOW, instructionsFor } from './flow.js';
+import { FLOW, instructionsFor, langOf } from './flow.js';
 import { validateToolCall, TOOL_VERBS, STATIC_REGISTRY, MAX_TOOL_CALLS, toolDefs } from './tools.js';
 import { SceneFeed } from './scene.js';
 import { Pacer, pacedTools } from './pace.js';
@@ -118,7 +118,8 @@ const CLOSING_RETRY_ON = Object.freeze(FLOW.closing.retryOn ?? ['conversation_al
 export class VoiceSession {
   
   
-  constructor({ transport, act, say, bus = null, registry = STATIC_REGISTRY, onStatus = () => {}, scene = {}, setTimer = setTimeout, clearTimer = clearTimeout, now = Date.now, presence = null, phaseGate = null, trace = null, callTrace = FLOW.callTrace || [] }) {
+  constructor({ transport, act, say, bus = null, registry = STATIC_REGISTRY, onStatus = () => {}, scene = {}, setTimer = setTimeout, clearTimer = clearTimeout, now = Date.now, presence = null, phaseGate = null, trace = null, callTrace = FLOW.callTrace || [], lang = FLOW.lang }) {
+    this.lang = langOf(lang); 
     this.traceFn = typeof trace === 'function' ? trace : null; this.callTrace = callTrace; 
     Object.assign(this, { t: transport, act, say, bus, registry, onStatus, phaseSync: null, phase: FLOW.firstPhase, perResponse: new Map(), offs: [], ended: false,
       setTimer, clearTimer, now, pacer: null, pacedRids: new Set(), seenCalls: new Set(), activeRids: new Set(), closing: null });
@@ -127,7 +128,7 @@ export class VoiceSession {
     
     if (paces(FLOW.pace.direct, transport.kind)) {
       this.pacer = new Pacer({ send: (e) => { if (this.ended || this.closing) return; e.response = e.response || {}; e.response.metadata = { chamber_act: 'paced' }; this.t.send(e); },
-        phase: () => this.phase, setTimer, clearTimer, toolDefs: toolDefs(registry), ...(typeof presence === 'function' ? { presence } : {}) });
+        phase: () => this.phase, lang: this.lang, setTimer, clearTimer, toolDefs: toolDefs(registry), ...(typeof presence === 'function' ? { presence } : {}) });
       this.offs.push(() => this.pacer.stop());
     }
     this.offs.push(transport.on('event', (ev) => this.onEvent(ev)));
@@ -192,7 +193,7 @@ export class VoiceSession {
   #askClosing() {
     const c = this.closing; if (!c || c.done || this.ended) return;
     c.pending = false; c.asked = true;
-    this.t.send({ type: 'response.create', response: { instructions: `${instructionsFor(this.phase)} ${FLOW.closing.hint}`,
+    this.t.send({ type: 'response.create', response: { instructions: `${instructionsFor(this.phase, this.lang)} ${FLOW.closing.hint}`,
       tools: toolDefs(this.registry).filter((t) => FLOW.closing.tools.includes(t.name)), tool_choice: 'auto', metadata: { chamber_act: 'closing' } } });
   }
   #tail() { const c = this.closing; if (!c || c.done || c.tail) return; c.tail = this.setTimer(() => { c.tail = null; this.#closed(); }, FLOW.closing.tailMs); }

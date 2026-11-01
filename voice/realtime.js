@@ -13,7 +13,7 @@ import { deviceId, fetchTicket } from './gate.js';
 import { WebRtcTransport, RelayWsTransport, connectWithFallback, createTrace, tracePath } from './transport.js';
 import { VoiceSession } from './session.js';
 import { registryFromDescribe } from './tools.js';
-import { FLOW } from './flow.js'; 
+import { FLOW, langOf } from './flow.js'; 
 import { definePcm16Worklet } from './pcm16-worklet.js';
 import { FrameFeed, FRAMES } from './frames.js';
 
@@ -47,6 +47,14 @@ export function traceRoute(loc = globalThis.location) {
 export function framesWanted(loc = globalThis.location, def = FRAMES) {
   let q = null; try { q = new URLSearchParams(loc?.search || '').get('fps'); } catch {}
   return !!def?.on && q !== '0';
+}
+
+
+
+export function langWanted(loc = globalThis.location, on = FLOW.langParam === true) {
+  if (!on) return FLOW.lang;
+  let q = null; try { q = new URLSearchParams(loc?.search || '').get('lang'); } catch {}
+  return langOf(q);
 }
 const msgOf = (e) => String(e?.message ?? e ?? 'error').slice(0, 120);
 const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o?.[k] != null).map((k) => [k, o[k]]));
@@ -264,7 +272,7 @@ export function mountVoice({ bus, chamber, getAudioCtx = () => null, config = {}
         
         gate = continuationGate(t, { trace, ...(cfg.now ? { now: cfg.now } : {}) }); 
         session = new VoiceSession({ transport: gate.transport, bus, registry, ...pick(cfg, ['setTimer', 'clearTimer', 'now']),
-          trace: (kind, fields) => trace.push(kind, fields), 
+          lang: langWanted(), trace: (kind, fields) => trace.push(kind, fields), 
           ...(typeof chamber?.presence === 'function' ? { presence: chamber.presence } : {}),
           video: chamber?.video ?? null, viz: chamber?.viz ?? null,
           act: (verb, args, why, by) => chamber.act(verb, args, why, by), 

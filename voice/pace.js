@@ -26,8 +26,8 @@ export class Pacer {
   
   
   
-  constructor({ send, phase = () => FLOW.firstPhase, gapMs = FLOW.pace.maxGapS * 1000, setTimer = setTimeout, clearTimer = clearTimeout, def = FLOW.pace, onAct = () => {}, toolDefs = allToolDefs(), presence = () => true }) {
-    Object.assign(this, { send, phase, gapMs, setTimer, clearTimer, def, onAct, toolDefs, presence, i: 0, recent: [], timer: null, playTimer: null, busy: false, speaking: false, playing: false, started: false, stopped: false });
+  constructor({ send, phase = () => FLOW.firstPhase, lang = FLOW.lang, gapMs = FLOW.pace.maxGapS * 1000, setTimer = setTimeout, clearTimer = clearTimeout, def = FLOW.pace, onAct = () => {}, toolDefs = allToolDefs(), presence = () => true }) {
+    Object.assign(this, { send, phase, lang, gapMs, setTimer, clearTimer, def, onAct, toolDefs, presence, i: 0, recent: [], timer: null, playTimer: null, busy: false, speaking: false, playing: false, started: false, stopped: false });
   }
   
   onUpstream(ev) {
@@ -63,7 +63,7 @@ export class Pacer {
     const defs = this.toolDefs.filter((t) => allow.includes(t.name)), names = defs.map((t) => t.name); 
     
     
-    this.send({ type: 'response.create', response: { instructions: `${instructionsFor(phase)} The person is silent. Now: ${a.hint}. ${how}${avoid}`,
+    this.send({ type: 'response.create', response: { instructions: `${instructionsFor(phase, this.lang)} The person is silent. Now: ${a.hint}. ${how}${avoid}`,
       tools: defs, tool_choice: a.say ? 'auto' : (names.length ? 'required' : 'none') } }); 
     this.busy = true; 
     this.onAct({ n: this.i, say: a.say, tools: names });
