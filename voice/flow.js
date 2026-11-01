@@ -146,6 +146,13 @@ export const FLOW = Object.freeze({
   
   
   
+  
+  
+  
+  
+  
+  
+  
   floor: Object.freeze({
     maxQuiet: 1,
     forcedExclude: Object.freeze(['stay_quiet', 'switch_phase', 'end_session', 'when', 'look', 'show_image']),
@@ -153,6 +160,12 @@ export const FLOW = Object.freeze({
     phaseBudget: Object.freeze({ max: 3, windowS: 60 }),
     landingS: 12,
     speechMuteS: 3,
+    openMaxS: 8,
+    openProvenS: 30,
+    speechMaxS: 45,
+    inflightS: 5,
+    staleExempt: Object.freeze(['P0', 'P1']),
+    groove: Object.freeze({ at: 0.6, rearmAt: 0.45 }),
   }),
   
   
