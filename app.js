@@ -727,6 +727,8 @@ window.__chamber = {
 
 if (DEV_ROUTE) import('./judge/recorder.js').then(({ startRecorder }) => { window.__chamber.startRecorder = startRecorder; });
 
+import('./sound/matrix-bridge.js').then(({ mountBodyPatch }) => mountBodyPatch({ bus, pad: () => pad, enabled: params.get('matrix') === '1' }));
+
 
 
 
