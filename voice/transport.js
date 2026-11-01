@@ -18,6 +18,8 @@
 
 
 
+import { KINDS } from './kinds.js'; 
+
 class Emitter {
   constructor() { this.subs = {}; }
   on(n, fn) { (this.subs[n] ||= []).push(fn); return () => { this.subs[n] = this.subs[n].filter((f) => f !== fn); }; }
@@ -91,7 +93,7 @@ export class WebRtcTransport extends Emitter {
     }
   };
   constructor(opts) {
-    super(); this.kind = 'webrtc';
+    super(); this.kind = KINDS.direct;
     this.o = { fetchImpl: globalThis.fetch?.bind(globalThis), RTCPeerConnection: globalThis.RTCPeerConnection, iceTimeoutMs: 3000, graceMs: 5000, hiddenMs: HIDDEN_MS_DEFAULT, hangupTimeoutMs: HANGUP_TIMEOUT_MS, now: Date.now, ...opts };
     this.trace = this.o.trace || createTrace(); this.closed = false; this.graceTimer = null;
   }
@@ -244,7 +246,7 @@ export class WebRtcTransport extends Emitter {
 
 export class RelayWsTransport extends Emitter {
   
-  constructor(opts) { super(); this.kind = 'relay-ws'; this.o = { WebSocketImpl: globalThis.WebSocket, ...opts }; this.trace = this.o.trace || createTrace(); this.closed = false; }
+  constructor(opts) { super(); this.kind = KINDS.relay; this.o = { WebSocketImpl: globalThis.WebSocket, ...opts }; this.trace = this.o.trace || createTrace(); this.closed = false; }
   connect(ticket) {
     const { wsOrigin, device, WebSocketImpl, wsOptions } = this.o;
     if (!wsOrigin) return Promise.reject(err('no relay origin configured', { status: 0 }));

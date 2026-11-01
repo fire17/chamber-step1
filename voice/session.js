@@ -27,6 +27,7 @@ import { FLOW, instructionsFor } from './flow.js';
 import { validateToolCall, TOOL_VERBS, STATIC_REGISTRY, MAX_TOOL_CALLS, toolDefs } from './tools.js';
 import { SceneFeed } from './scene.js';
 import { Pacer, pacedTools } from './pace.js';
+import { paces } from './kinds.js';
 
 export const MIRRORED_BY = Object.freeze(['voice', 'dev']); 
 
@@ -110,7 +111,8 @@ export class VoiceSession {
       setTimer, clearTimer, now, pacer: null, pacedRids: new Set(), seenCalls: new Set(), activeRids: new Set(), closing: null });
     this.phaseGate = phaseGate || new PhaseGate({ now: () => this.now() }); 
     
-    if (FLOW.pace.direct?.includes?.(transport.kind) ?? transport.kind === 'webrtc') {
+    
+    if (paces(FLOW.pace.direct, transport.kind)) {
       this.pacer = new Pacer({ send: (e) => { if (this.ended || this.closing) return; e.response = e.response || {}; e.response.metadata = { chamber_act: 'paced' }; this.t.send(e); },
         phase: () => this.phase, setTimer, clearTimer, toolDefs: toolDefs(registry), ...(typeof presence === 'function' ? { presence } : {}) });
       this.offs.push(() => this.pacer.stop());
