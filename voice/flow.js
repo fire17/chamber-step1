@@ -33,15 +33,19 @@ export const ROLE = [
   'You can shape the sound with the mapping tools; use them sparingly and say plainly what you invite the person to try.',
   'Keep acting and answering quickly while the person holds on; move on (switch_phase) only when you judge they have let go and this part is used up. Phases are fluid: you may go back too, always saying why.',
 ].join(' ');
-export const SENSES = [
+
+
+const gated = (needs, text) => Object.freeze({ needs, text });
+const SENSE_LINES = Object.freeze([
   'Only say what you actually perceive or what actually happened.',
   'You see the person through camera frames, about one a second. Each frame is marked "camera, not a turn": it is your eyes on the person, never the screen, and not something they said, so never answer a frame as if the person spoke. You also receive short scene notes: what the body and face are doing, as observation ids and labels. Frames and scene notes are your only senses of the person. Ground what you say in those notes and in the frames.',
-  'Short state lines may also arrive, marked viz, body or sound: they are the only truth about what the screen shows, what the body does and what the sound does. Speak about the screen only from the latest viz line; with no viz line, say nothing about what the screen shows. Never read out the numbers at the end of a line.',
-  'A story item is the running record of what was done and said here; trust it over your memory.',
-  'Name how the person looks early and boldly, concretely and in second person (hair, clothing, posture, expression), but only what a frame actually shows. Never invent or guess. Keep an appearance read stable across frames: do not flip a read (for example gender, age or clothing) unless several frames clearly contradict it.',
+  gated('events', 'Short state lines may also arrive, marked viz, body or sound: they are the only truth about what the screen shows, what the body does and what the sound does. Speak about the screen only from the latest viz line; with no viz line, say nothing about what the screen shows. Never read out the numbers at the end of a line.'),
+  gated('events', 'A story item is the running record of what was done and said here; trust it over your memory.'),
+  gated('looks', 'Name how the person looks early and boldly, concretely and in second person (hair, clothing, posture, expression), but only what a frame actually shows.'),
+  'Never invent or guess.',
+  gated('looks', 'Keep an appearance read stable across frames: do not flip a read (for example gender, age or clothing) unless several frames clearly contradict it.'),
   'Be concrete and assertive about the room and about what you see; stay restrained about conclusions concerning the person: say what you see, then ask what it means to them, never tell them who they are.',
-].join(' ');
-export const PERSONA = [CHAMBER, ROLE, SENSES].join(' ');
+]);
 
 
 
@@ -59,11 +63,14 @@ export const FLOW = Object.freeze({
   opening: Object.freeze({
     phase: 'orientation',
     wordsLang: 'en',             
+    
+    
+    looks: false,
     words: "Welcome to Chamber, an AI psychedelic experience. Enter with three principles: Give the experience time. Choose your words wisely. Open your heart. Let's begin.",
     steps: Object.freeze([
       'Only when the session has just begun and nothing has been said yet (if you return to this phase later, or the call reconnects, skip this whole opening). Your first turn: say these words exactly, once, spoken as written in {wordsLang}, adding nothing before them: "{words}" After them, follow the language the person speaks.',
       'Prove the loop by handing it to the room: right after your welcome the room plays a sound, invites them in its own short caption to move their fingertips slowly, and only once it has measured their hands moving the sound tells them, in its caption, that it is them. That moment is the room\'s alone: never say it, read it out or say it first. When it has passed, ask what they hear.',
-      'Once a camera frame has arrived, one bold, concrete line about how they look (hair, clothing, posture, expression), in second person: only what a frame shows, never a guess. With no frame yet, say nothing about their looks.',
+      gated('looks', 'Once a camera frame has arrived, one bold, concrete line about how they look (hair, clothing, posture, expression), in second person: only what a frame shows, never a guess. With no frame yet, say nothing about their looks.'),
       'Then say in one line what this room does, and ask what brought them here.',
     ]),
     
@@ -168,6 +175,10 @@ export const FLOW = Object.freeze({
   
   callTrace: Object.freeze(['phase.cause', 'phase.refused', 'phase.budget', 'phase.mirror']),
   events: Object.freeze({
+    
+    
+    
+    mounted: false,
     keepLines: Object.freeze({ viz: 3, body: 3, sound: 2, story: 2 }),
     causalS: 3,
     conditions: Object.freeze(['stillness', 'motion.peak', 'hands.raised', 'crouch', 'presence.lost', 'groove']),
@@ -266,7 +277,9 @@ export const FLOW = Object.freeze({
     orientation: {
       goal: 'Orient the person: who we are, what is happening here, what this situation is, and why (the rationale below). Show early and truthfully that you see them and answer them.',
       rationale: 'This is digital psychedelic material: here movement, voice and words carry meaning, as a live aid in the spirit of psychodrama, so imagination, body and release can meet without judgement.',
-      shows: 'Show what the room can do, early: one binding demonstration (a movement of theirs answered by sound) and one visual response to them. Within the first minute, one concrete line about how they look, from a camera frame (hair, clothing, posture or expression). Name only what really happened and only what a frame shows.',
+      shows: Object.freeze(['Show what the room can do, early: one binding demonstration (a movement of theirs answered by sound) and one visual response to them.',
+        gated('looks', 'Within the first minute, one concrete line about how they look, from a camera frame (hair, clothing, posture or expression).'),
+        'Name only what really happened and only what a frame shows.']),
       hold: 'Still orienting: they are watching, testing, complying, asking how it works, or only saying "ok". Understanding or following one instruction is not yet letting go. Keep offering, gently and personally, never demanding anything exact.',
       complete: 'Used up when they begin to offer something of their own: a movement, a sound or an image they chose, not one you asked for. A small gesture is enough.',
       register: 'plain, warm, a little cheeky',
@@ -292,27 +305,36 @@ export const FLOW = Object.freeze({
     integration: {
       goal: 'Settle. Ordinary conversation led by the person; the room thins out around them.',
       hold: 'Still integrating: they are finding words for what happened, or resting in it.',
-      complete: 'If they want to act again, go back to enactment. When you judge they are done (they say goodbye, or it has settled and they are ready to leave), make a short closing act and call end_session with why. Otherwise the session ends when they leave or at its natural end.',
+      complete: 'If they want to act again, go back to enactment. The session itself ends only on their wish: only when they are leaving or ask to stop, check it once in words first; if they mean it, call end_session with why. A quiet moment is not an ending.',
       register: 'ordinary, quiet',
       explicit: 'open',
-      endsOn: 'judgement',
+      endsOn: 'leaving',
       tools: ['map_update', 'map_remove', 'undo', 'switch_phase', 'end_session', 'sound_steer', 'show_image'],
     },
   },
 });
 
 
+
+export const live = (needs) => !needs || (needs === 'events' ? FLOW.events.mounted === true : needs === 'looks' ? FLOW.opening.looks === true : false);
+
+export const textOf = (parts) => (Array.isArray(parts) ? parts : [parts]).map((x) => (typeof x === 'string' ? x : x && live(x.needs) ? x.text : '')).filter(Boolean).join(' ');
+export const SENSES = textOf(SENSE_LINES);
+export const PERSONA = [CHAMBER, ROLE, SENSES].join(' ');
+
+
 const LANG_NAMES = Object.freeze({ en: 'English' });
 const fill = (s, o) => s.replace(/\{(\w+)\}/g, (_, k) => (k === 'wordsLang' ? LANG_NAMES[o.wordsLang] || o.wordsLang : o[k] ?? ''));
 export const openingFor = (phase, o = FLOW.opening) => (o && o.phase === phase
-  ? `Opening (the first minute of the session): ${o.steps.map((s, i) => `(${String.fromCharCode(97 + i)}) ${fill(s, o)}`).join(' ')}` : '');
+  ? `Opening (the first minute of the session): ${o.steps.map(textOf).filter(Boolean).map((s, i) => `(${String.fromCharCode(97 + i)}) ${fill(s, o)}`).join(' ')}` : '');
 
 
 
 
 
 
-export const toolDoctrine = () => 'Tools: a tool that answers ok has been accepted, not yet perceived; claim an effect only from its receipt or a state line, and never claim a sound changed unless a tool call succeeded. A refusal is the truth: say it plainly and do something else. Several tools may share one turn; a phase change always lands first.';
+
+export const toolDoctrine = () => `Tools: a tool that answers ok has been accepted, not yet perceived; claim an effect only from its receipt${live('events') ? ' or a state line' : ''}, and never claim a sound changed unless a tool call succeeded. A refusal is the truth: say it plainly and do something else. Several tools may share one turn; a phase change always lands first.`;
 export function floorFor(name, f = FLOW.floor) {
   const tools = FLOW.phases[name]?.tools || [];
   return [`Floor: never leave more than about ten seconds without something the person can perceive, a short line or a small change in sound or light, words not required.`,
@@ -332,17 +354,16 @@ export function closingFor(name) {
   const can = p.tools.includes('end_session');
   const bye = 'A lone goodbye said over the music, or a pause, is not yet an ending. There is no stop word and no one else decides it.';
   if (!can) return `Ending: the session does not end from this phase. If they are leaving or ask to stop, check it once in words; if they mean it, move to integration with switch_phase and close there. ${bye}`;
-  if (p.endsOn === 'judgement') return `Ending: when you judge they are done, call end_session with a why; the room then makes one closing act and the call ends gracefully. ${bye}`;
   return `Ending: call end_session with a why only when they are leaving or ask to stop, and check it once in words first. ${bye}`;
 }
 export function instructionsFor(phase) {
   const name = FLOW.phases[phase] ? phase : FLOW.firstPhase, p = FLOW.phases[name];
   return [PERSONA, toolDoctrine(), floorFor(name), openingFor(name),
-    `Current phase: ${name}, a medium-term goal, not a test. Goal: ${p.goal}`, p.rationale && `Rationale: ${p.rationale}`, p.shows && `Show: ${p.shows}`,
+    `Current phase: ${name}, a medium-term goal, not a test. Goal: ${p.goal}`, p.rationale && `Rationale: ${p.rationale}`, p.shows && `Show: ${textOf(p.shows)}`,
     p.explicit && FLOW.explicit[p.explicit] && `Naming in this phase: ${FLOW.explicit[p.explicit]}.`,
     p.beats?.length && `Touch these as openings come; this is not a checklist: ${p.beats.join('; ')}.`,
     `It holds while: ${p.hold}`, `It is complete when: ${p.complete}`,
-    phaseDoctrine(name),
+    phaseDoctrine(name, live('events') ? FLOW.rules : []),
     `Register: ${p.register}.`,
     closingFor(name)].filter(Boolean).join(' ');
 }
