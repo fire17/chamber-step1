@@ -67,6 +67,7 @@ const conductor = makeConductor({
     stimulusRms: () => pad?.chimeRms() ?? 0,                               
     source: (d) => (S.inp ? readBlend(S.inp, d.src, d.mag) : null),       
     param: (target) => pad?.live()[target],                                
+    voiceOut: () => (pad?.ducker?.analyser ? pad.ducker.keyOpen : null),   
     sound: () => {                                                         
       const l = pad?.live(); if (!l) return null;
       const r = (v) => +(+v).toFixed(3);
@@ -735,3 +736,7 @@ if (params.get('voice') !== '0') {
     if (voice) $('start').addEventListener('click', () => { voice.start().catch?.(() => {}); });
   });
 }
+
+
+
+if (params.get('voice') !== '0') import('./voice/flow.js').then(({ FLOW }) => { if (FLOW.opening.gate) conductor.gate(FLOW.opening.gate.name, FLOW.opening.gate); });

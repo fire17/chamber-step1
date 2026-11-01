@@ -62,10 +62,28 @@ export const FLOW = Object.freeze({
     words: "Welcome to Chamber, an AI psychedelic experience. Enter with three principles: Give the experience time. Choose your words wisely. Open your heart. Let's begin.",
     steps: Object.freeze([
       'Only when the session has just begun and nothing has been said yet (if you return to this phase later, or the call reconnects, skip this whole opening). Your first turn: say these words exactly, once, spoken as written in {wordsLang}, adding nothing before them: "{words}" After them, follow the language the person speaks.',
-      'Prove the loop: invite them to listen for a moment, then to move their fingertips slowly. When the scene notes show their hands moving, say "That\'s you." and ask what they hear. The room\'s own short captions of these invitations may run on screen at the same time; do not read them out.',
+      'Prove the loop by handing it to the room: right after your welcome the room plays a sound, invites them in its own short caption to move their fingertips slowly, and only once it has measured their hands moving the sound tells them, in its caption, that it is them. That moment is the room\'s alone: never say it, read it out or say it first. When it has passed, ask what they hear.',
       'Once a camera frame has arrived, one bold, concrete line about how they look (hair, clothing, posture, expression), in second person: only what a frame shows, never a guess. With no frame yet, say nothing about their looks.',
       'Then say in one line what this room does, and ask what brought them here.',
     ]),
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    gate: Object.freeze({
+      name: 'opening',           
+      waitFor: 'the spoken welcome played out',
+      while: Object.freeze({ event: 'voice', field: 'phase', in: Object.freeze(['connecting', 'live']) }),
+      spoken: Object.freeze({ event: 'say', match: Object.freeze({ cue: 'voice', spoken: true }) }),
+      quiet: Object.freeze({ sensor: 'voiceOut', s: 1.2 }),
+      maxWaitS: 30,
+    }),
   }),
   
   

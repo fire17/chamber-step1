@@ -247,9 +247,11 @@ export const BEAT = {
 
 
 
+
+
 export const CUES = {
   opening: [
-    { id: 'welcome', hold: 3.5 },
+    { id: 'welcome', gate: 'opening', hold: 3.5 }, 
     { id: 'chime', say: 'עכשיו נשמע צליל', en: "Now we'll hear a sound", show: 3.2,
       acts: [{ verb: 'stimulus', args: { what: 'chime', claim: 'a1' }, at: 1.6 }],
       until: { probe: 'audible', claim: 'a1', timeout: 3, repair: [{ verb: 'stimulus', args: { what: 'chime', claim: 'a1', repair: true } }], onFail: 'strip' },
