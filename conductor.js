@@ -226,6 +226,9 @@ export class Conductor {
     this.register('hold', function ({ why = '' }) { return { ok: true, held: why }; });
     
     
+    this.register('session.end', function ({ why = '' }) { this.bus.emit('session.end', { why }); return { ok: true, closing: true, why: String(why).slice(0, 200) }; });
+    
+    
     
     
     

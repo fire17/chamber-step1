@@ -722,7 +722,9 @@ if (DEV_ROUTE) import('./judge/recorder.js').then(({ startRecorder }) => { windo
 if (params.get('voice') !== '0') {
   import('./voice/realtime.js').then(({ mountVoice }) => {
     const voiceAct = conductor.actor('voice');
-    const chamber = { ...window.__chamber, act: (verb, args, why) => voiceAct(verb, args, why) };
+    
+    
+    const chamber = { ...window.__chamber, act: (verb, args, why) => voiceAct(verb, args, why), get video() { return video; }, presence: () => !!(S.body.present || S.face.present) };
     window.__chamber.voiceAct = voiceAct; 
     
     

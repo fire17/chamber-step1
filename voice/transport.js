@@ -50,13 +50,56 @@ export function createTrace(cap = 200, now = () => Date.now()) {
   };
 }
 
+
+export const HANGUP_TIMEOUT_MS = 3000;
+
+export const HIDDEN_MS_DEFAULT = null;
+
 export class WebRtcTransport extends Emitter {
   
   
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  #win = null; #doc = null; #hiddenTimer = null; #hiddenAt = null;
+  #onHide = () => this.#leave('pagehide'); 
+  #onVis = () => {
+    const ms = this.o.hiddenMs;
+    if (ms == null || ms < 0 || this.closed || !this.#doc) return; 
+    if (this.#doc.visibilityState === 'hidden') {
+      if (this.#hiddenAt != null) return;
+      this.#hiddenAt = this.o.now();
+      if (ms === 0) return this.#leave('hidden');
+      this.trace.push('page.hidden', { ms });
+      this.#hiddenTimer = setTimeout(() => { this.#hiddenTimer = null; if (!this.closed && this.#doc?.visibilityState === 'hidden') this.#leave('hidden'); }, ms);
+    } else if (this.#hiddenAt != null) {
+      const away = this.o.now() - this.#hiddenAt; this.#hiddenAt = null;
+      if (this.#hiddenTimer) { clearTimeout(this.#hiddenTimer); this.#hiddenTimer = null; }
+      if (away >= ms) return this.#leave('hidden'); 
+      this.trace.push('page.visible', { away });
+    }
+  };
   constructor(opts) {
     super(); this.kind = 'webrtc';
-    this.o = { fetchImpl: globalThis.fetch?.bind(globalThis), RTCPeerConnection: globalThis.RTCPeerConnection, iceTimeoutMs: 3000, graceMs: 5000, ...opts };
+    this.o = { fetchImpl: globalThis.fetch?.bind(globalThis), RTCPeerConnection: globalThis.RTCPeerConnection, iceTimeoutMs: 3000, graceMs: 5000, hiddenMs: HIDDEN_MS_DEFAULT, hangupTimeoutMs: HANGUP_TIMEOUT_MS, now: Date.now, ...opts };
     this.trace = this.o.trace || createTrace(); this.closed = false; this.graceTimer = null;
+  }
+  #leave(why) { this.#fail(why, why); } 
+  #beacon(url, body) {
+    const b = this.o.beacon ?? (globalThis.navigator?.sendBeacon ? (u, d) => globalThis.navigator.sendBeacon(u, d) : null);
+    if (!b) return false;
+    try { const blob = typeof Blob === 'function' ? new Blob([body], { type: 'text/plain' }) : body; return b(url, blob) === true; } catch { return false; }
   }
   async #fetch(stage, u, init) { 
     try { const r = await this.o.fetchImpl(u, init); this.trace.push('fetch', { stage, path: tracePath(u), status: r?.status ?? 0 }); return r; }
@@ -107,6 +150,10 @@ export class WebRtcTransport extends Emitter {
       const where = loc ? new URL(loc, origin) : null;
       if (where && where.origin !== new URL(origin).origin) throw err('calls Location is off the gateway origin', { status: 201, fallback: true });
       if (where) this.location = where.toString();
+      if (where) { 
+        this.#win = this.o.win ?? globalThis; this.#win.addEventListener?.('pagehide', this.#onHide);
+        this.#doc = this.o.doc ?? globalThis.document ?? null; this.#doc?.addEventListener?.('visibilitychange', this.#onVis);
+      }
       const answer = await r.text();
       if (!/application\/sdp/i.test(ct) || !answer.startsWith('v=0')) throw err('calls answer is not raw SDP', { status: 201, fallback: true });
       if (!loc) throw err('calls answer has no Location', { status: 201, fallback: true });
@@ -124,6 +171,10 @@ export class WebRtcTransport extends Emitter {
     });
   }
   send(ev) { if (this.dc?.readyState === 'open') { this.dc.send(JSON.stringify(ev)); return true; } return false; }
+  
+  item(item, previousItemId) { return this.send({ type: 'conversation.item.create', ...(previousItemId ? { previous_item_id: previousItemId } : {}), item }); }
+  respond(response) { return this.send(response ? { type: 'response.create', response } : { type: 'response.create' }); }
+  deleteItems(ids = []) { let n = 0; for (const id of ids) if (id && this.send({ type: 'conversation.item.delete', item_id: String(id) })) n++; return n; }
   start() { return this.send({ type: 'response.create' }); }
   
   scene(text) { return this.send({ type: 'conversation.item.create', item: { type: 'message', role: 'system', content: [{ type: 'input_text', text: `[scene] ${text}` }] } }); }
@@ -131,20 +182,26 @@ export class WebRtcTransport extends Emitter {
   
   
   
-  async setPhase(name, why = '') {
+  
+  async setPhase(name, why) {
     if (!this.location) return { ok: false, status: 0, why: 'no call handle' };
+    if (!String(why ?? '').trim()) return { ok: false, status: 0, why: 'no why' };
     try {
       const r = await this.#fetch('phase', `${this.location}/phase`, { method: 'POST', cache: 'no-store',
         headers: { Authorization: `Bearer ${this.ticket}`, 'Content-Type': 'application/json', 'x-chamber-device': this.o.device },
-        body: JSON.stringify({ phase: name, why: String(why || 'phase change').slice(0, 200), name }) });
+        body: JSON.stringify({ phase: name, why: String(why).slice(0, 200) }) });
       await r.text?.().catch(() => '');
       return r.ok ? { ok: true, status: r.status } : { ok: false, status: r.status, why: `phase ${r.status}` };
     } catch { return { ok: false, status: 0, why: 'phase unreachable' }; }
   }
+  get maxMessageSize() { return this.pc?.sctp?.maxMessageSize ?? null; } 
   async #fail(code, why) { if (this.closed) return; this.trace.push('fail', { stage: 'transport', code, why }); await this.close(why); this.emit('close', { code, why }); }
   async close(why = 'close') { if (this.closed) return; this.closed = true; this.trace.push('close', { stage: 'transport', why }); await this.#teardown(why); }
   async #teardown(why = 'teardown') {
     this.#clearGrace();
+    if (this.#win) { try { this.#win.removeEventListener?.('pagehide', this.#onHide); } catch {} this.#win = null; }
+    if (this.#doc) { try { this.#doc.removeEventListener?.('visibilitychange', this.#onVis); } catch {} this.#doc = null; }
+    if (this.#hiddenTimer) { clearTimeout(this.#hiddenTimer); this.#hiddenTimer = null; }
     const loc = this.location, ticket = this.ticket; this.location = null; this.ticket = null;
     if (this.dc) { this.dc.onclose = null; this.dc.onmessage = null; }
     if (this.dc) { this.dc.onerror = null; this.dc.onopen = null; }
@@ -153,7 +210,35 @@ export class WebRtcTransport extends Emitter {
     try { this.pc?.getSenders?.().forEach((s) => s.track?.stop()); } catch {}
     try { this.pc?.close(); } catch {}
     this.pc = null; this.dc = null;
-    if (loc) { this.trace.push('hangup', { stage: 'teardown', why }); try { const r = await this.#fetch('hangup', `${loc}/hangup`, { method: 'POST', cache: 'no-store', headers: { Authorization: `Bearer ${ticket}`, 'x-chamber-device': this.o.device } }); await r?.text?.().catch(() => ''); } catch {} }
+    if (loc) await this.#hangup(loc, ticket, why);
+  }
+  
+  
+  
+  async #hangup(loc, ticket, why) {
+    const url = `${loc}/hangup`;
+    this.trace.push('hangup', { stage: 'teardown', why });
+    let p = null;
+    try {
+      if (typeof this.o.fetchImpl !== 'function') throw new Error('no fetch');
+      p = this.o.fetchImpl(url, { method: 'POST', cache: 'no-store', keepalive: true, headers: { Authorization: `Bearer ${ticket}`, 'x-chamber-device': this.o.device } });
+    } catch {
+      const sent = this.#beacon(url, JSON.stringify({ ticket, device: this.o.device, why: String(why).slice(0, 60) }));
+      this.trace.push('fetch', { stage: 'hangup', path: tracePath(url), status: 0, msg: sent ? 'beacon' : 'unsent' });
+      return;
+    }
+    
+    
+    const ms = Number.isFinite(this.o.hangupTimeoutMs) && this.o.hangupTimeoutMs >= 0 ? this.o.hangupTimeoutMs : HANGUP_TIMEOUT_MS;
+    let timer = null;
+    const bound = new Promise((res) => { timer = setTimeout(() => res('timeout'), ms); });
+    const answered = Promise.resolve(p).then(async (r) => { await r?.text?.().catch(() => ''); return r; });
+    try {
+      const r = await Promise.race([answered, bound]);
+      if (r === 'timeout') this.trace.push('fetch', { stage: 'hangup', path: tracePath(url), status: 0, msg: 'timeout', ms });
+      else this.trace.push('fetch', { stage: 'hangup', path: tracePath(url), status: r?.status ?? 0 });
+    } catch { this.trace.push('fetch', { stage: 'hangup', path: tracePath(url), status: 0, msg: 'unreachable' }); }
+    finally { clearTimeout(timer); answered.catch(() => {}); }
   }
 }
 
