@@ -29,6 +29,18 @@ import { SceneFeed } from './scene.js';
 import { Pacer, pacedTools } from './pace.js';
 import { paces } from './kinds.js';
 
+
+
+
+
+
+
+export const ACT_MAX_MS_SAFE = 30000; 
+const okActMax = (x) => Number.isFinite(x) && x > 0;
+const ACT_MAX_MS_FLOW = okActMax(FLOW.closing?.actMaxMs) ? FLOW.closing.actMaxMs
+  : (console.warn(`[voice] flow.js closing.actMaxMs ${String(FLOW.closing?.actMaxMs).slice(0, 20)} is not a finite positive number: using ACT_MAX_MS_SAFE ${ACT_MAX_MS_SAFE}`), ACT_MAX_MS_SAFE);
+export const actMaxMs = () => { const x = FLOW.closing?.actMaxMs; return Number.isFinite(x) && x > 0 ? x : ACT_MAX_MS_FLOW; };
+
 export const MIRRORED_BY = Object.freeze(['voice', 'dev']); 
 
 
@@ -171,7 +183,7 @@ export class VoiceSession {
   #startClosing(why) {
     if (this.closing) return; 
     const c = this.closing = { rid: null, t0: this.now(), why, asked: false, pending: false, retried: false, created: false, audio: false, tail: null, max: null, done: false };
-    c.max = this.setTimer(() => { c.max = null; this.#closed(); }, FLOW.closing.actMaxMs); 
+    c.max = this.setTimer(() => { c.max = null; this.#closed(); }, actMaxMs()); 
     this.pacer?.stop();
     if (!this.ended) this.t.send(audioUpdate('closing')); 
     if (this.activeRids.size) c.pending = true; else this.#askClosing();
@@ -245,11 +257,29 @@ export class VoiceSession {
     return this.runTool(ev);
   }
 
+  
+  
+  
+  
+  
+  #closeLatch = null;
+  #awaitLatch(latch) {
+    if (!latch.timer && !latch.done) latch.timer = this.setTimer(() => { latch.timer = null; if (this.#closeLatch === latch) this.#closeLatch = null;
+      latch.timedOut = true; latch.settle(null); }, actMaxMs());
+    return latch.p;
+  }
   async runTool(ev) {
     const rid = ev.response_id || '?';
     const n = (this.perResponse.get(rid) || 0) + 1; this.perResponse.set(rid, n);
     const output = (out) => this.t.send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: ev.call_id, output: JSON.stringify(out) } });
     const name = String(ev.name).slice(0, 40);
+    let stale = null; 
+    if (ev.name === 'end_session' && this.#closeLatch) {
+      const first = await this.#awaitLatch(this.#closeLatch);
+      if (first) { const out = { ...first }; output(out); return out; } 
+      if (this.ended) return { ok: false, why: 'session ended' }; 
+      stale = { ok: false, why: `end_session: the goodbye already under way has not answered within ${actMaxMs() / 1000} s; refused for now (end again if they are done)` };
+    }
     if (this.closing) { 
       let out;
       if (ev.name === 'end_session') out = { ok: true, closing: true };
@@ -265,14 +295,19 @@ export class VoiceSession {
     const allowed = FLOW.phases[this.phase]?.tools || [];
     const paced = this.pacedRids.has(rid);
     let out;
-    const v = !allowed.includes(ev.name) ? { ok: false, why: `tool '${name}' not allowed in ${this.phase}` }
+    const v = stale ? stale : !allowed.includes(ev.name) ? { ok: false, why: `tool '${name}' not allowed in ${this.phase}` }
       : paced && !pacedTools(this.phase).includes(ev.name) ? { ok: false, why: `tool '${name}' not allowed on a paced turn` } 
       : n > MAX_TOOL_CALLS ? { ok: false, why: `more than ${MAX_TOOL_CALLS} tool calls in one response` }
       : validateToolCall(ev.name, ev.arguments, this.registry);
-    let closing = false;
+    let closing = false, latched = null, latch = null;
     if (!v.ok) out = { ok: false, why: v.why };
     else {
       let rec;
+      if (v.verb === 'session.end') { 
+        latch = this.#closeLatch = { p: null, timer: null, done: false, timedOut: false, settle: null };
+        latch.p = new Promise((r) => { latch.settle = (x) => { if (latch.done) return; latch.done = true; if (latch.timer != null) { this.clearTimer(latch.timer); latch.timer = null; } r(x); }; });
+        latched = true;
+      }
       const gate = v.verb === 'phase.set' && v.args.name !== this.phase ? this.phaseGate.check({ from: this.phase, to: v.args.name, cause: 'switch_phase', why: v.args.why }) : null;
       if (v.verb === 'phase.set' && v.args.name === this.phase) rec = { ok: true, result: { ok: true, held: true } }; 
       else if (gate && !gate.ok) { rec = { ok: false, error: gate.why }; if (gate.budget) this.#trace({ kind: 'phase.budget', from: this.phase, to: v.args.name, why: gate.why }); } 
@@ -284,6 +319,12 @@ export class VoiceSession {
       closing = ok && rec?.result?.closing === true && !this.ended && !this.closing;
       if (closing) out = { ok: true, closing: true };
     }
+    
+    
+    const late = latch && !closing && (this.closing || this.ended);
+    if (late && out.ok) out = { ok: true, closing: true };
+    if (latched) { if (this.#closeLatch === latch) this.#closeLatch = null; latch.settle(out); } 
+    if (late) { output(out); return out; }
     output(out);
     if (closing) this.#startClosing(String(v.args.why || '').slice(0, 200)); 
     

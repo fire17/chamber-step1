@@ -301,6 +301,11 @@ const FAMILY = { map_create: 'sound', map_update: 'sound', map_remove: 'sound', 
   play: 'sound', viz_switch: 'viz', viz_param: 'viz', viz_preset: 'viz', show_image: 'viz' };
 export const BEAT_BINDING = 'groove→beat'; 
 
+
+export const recOut = (rec) => (rec?.ok
+  ? { ok: true, state: rec.result?.state || null, ...(rec.result?.closing === true ? { closing: true } : {}) } 
+  : { ok: false, why: String(rec?.result?.why || rec?.error || 'refused').slice(0, 200) });
+
 export function ackState(name, args = {}, { nextActDue = null, tag = '' } = {}) {
   if (name === 'switch_phase') return `phase change to ${args.name} queued`;
   if (name === 'end_session') return 'closing: one goodbye, then the call ends';
@@ -314,14 +319,11 @@ export function createDispatcher(ctx = {}) {
     landingS: FLOW.floor?.landingS, setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: (h) => clearTimeout(h),
     schedule: (fn) => (typeof queueMicrotask === 'function' ? queueMicrotask(fn) : setTimeout(fn, 0)), ...ctx };
   const seen = new Set(), order = [];
-  let gn = 0, wn = 0;
+  let gn = 0, wn = 0, ending = null; 
   const remember = (id) => { seen.add(id); order.push(id); if (order.length > 256) seen.delete(order.shift()); };
   const safe = (fn, dflt) => { try { return fn(); } catch { return dflt; } };
   const inPhase = (name, phase) => { const list = typeof c.allowed === 'function' ? safe(() => c.allowed(phase), null) : null; return !list || list.includes(name); };
   const lineFor = (name) => { const f = c.lines?.[FAMILY[name]]; return typeof f === 'function' ? safe(f, null) : null; };
-  const recOut = (rec) => (rec?.ok
-    ? { ok: true, state: rec.result?.state || null, ...(rec.result?.closing === true ? { closing: true } : {}) } 
-    : { ok: false, why: String(rec?.result?.why || rec?.error || 'refused').slice(0, 200) });
   const errOut = (e) => ({ ok: false, why: String(e?.message || e).slice(0, 200) });
   function conductor(verb, args, why) { 
     if (typeof c.act !== 'function') return { ok: false, why: `no handler for '${verb}'` };
@@ -347,6 +349,7 @@ export function createDispatcher(ctx = {}) {
     const ok = r.ok !== false, line = ok ? lineFor(call.name) : null;
     const state = ok ? String(line || r.state || 'done').slice(0, 300) : undefined;
     const closing = ok && r.closing === true ? { closing: true } : {}; 
+    if (call.name === 'end_session' && ending === call.tag) ending = closing.closing ? 'closed' : null; 
     c.trace('tool.receipt', { callId: call.callId, name: call.name, ok, group: call.tag, ...closing });
     safe(() => c.receipt({ rid: call.rid, callId: call.callId, name: call.name, ok, ...(ok ? { state } : { why: String(r.why || 'refused').slice(0, 200) }), ...closing, group: call.tag }), null);
   }
@@ -405,12 +408,15 @@ export function createDispatcher(ctx = {}) {
       const v = validateToolCall(call.name, call.arguments, c.registry);
       if (!v.ok) { acks.push({ callId: call.callId, name: call.name, output: { ok: false, why: v.why } }); return; }
       
+      if (call.name === 'end_session' && ending) { acks.push({ callId: call.callId, name: call.name, output: { ok: false, why: ending === 'closed' ? 'end_session: the call is already closing' : `end_session: one goodbye already under way (${ending})` } }); return; }
+      
       if (arc && call.name === 'switch_phase') { acks.push({ callId: call.callId, name: call.name, output: { ok: false, why: `one phase change per response: already changing to ${arc.v.args.name}` } }); return; }
-      if (arc) { held.push({ call, v }); acks.push({ callId: call.callId, name: call.name, output: { ok: true, id: call.callId, state: `held for the phase change; checked against the new phase (${call.tag})` } }); return; }
+      if (arc) { if (call.name === 'end_session') ending = call.tag; held.push({ call, v }); acks.push({ callId: call.callId, name: call.name, output: { ok: true, id: call.callId, state: `held for the phase change; checked against the new phase (${call.tag})` } }); return; }
       if (!inPhase(call.name, phaseNow)) { acks.push({ callId: call.callId, name: call.name, output: { ok: false, why: `${call.name} is not offered in ${phaseNow}` } }); return; }
       
       if (call.name === 'look' && typeof c.presence === 'function' && !safe(c.presence, false)) { acks.push({ callId: call.callId, name: call.name, output: { ok: false, why: 'no one in view' } }); return; }
       if (call.name === 'switch_phase') arc = { call, v };
+      if (call.name === 'end_session') ending = call.tag; 
       const nextActDue = call.name === 'stay_quiet' && typeof c.nextActDue === 'function' ? safe(c.nextActDue, null) : null;
       acks.push({ callId: call.callId, name: call.name, output: { ok: true, id: call.callId, state: ackState(call.name, v.args, { nextActDue, tag: call.tag }) } });
       if (call !== arc?.call) jobs.push(() => work(call, v));
@@ -428,5 +434,7 @@ export function createDispatcher(ctx = {}) {
     dispatch(calls, { rid: null });
     return calls.map((x) => ({ callId: x.call_id, name: x.name }));
   }
-  return { dispatch, runThen, stats: () => ({ groups: gn, seen: seen.size }) };
+  
+  
+  return { dispatch, runThen, stats: () => ({ groups: gn, seen: seen.size }), conductor };
 }
