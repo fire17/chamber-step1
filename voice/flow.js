@@ -99,6 +99,12 @@ export const FLOW = Object.freeze({
     quality: 0.5,
     maxBytes: 120000,
     sctpMarginB: 2048,
+    
+    fpsMax: 2,        
+    maxHeld: 30,      
+    pruneGapS: 10,    
+    queueKeep: 2,     
+    speechHoldS: 30,  
     label: 'camera, not a turn',
     transports: Object.freeze(['webrtc']),
     sources: Object.freeze({ camera: Object.freeze({ fps: 1, needsPresence: true }), rendered: Object.freeze({ fps: 0, needsPresence: false }) }),
@@ -155,6 +161,12 @@ export const FLOW = Object.freeze({
   
   
   
+  
+  
+  voidOn: Object.freeze(['input_audio_buffer.speech_started', 'input_audio_buffer.committed']),
+  
+  
+  callTrace: Object.freeze(['phase.cause', 'phase.refused', 'phase.budget', 'phase.mirror']),
   events: Object.freeze({
     keepLines: Object.freeze({ viz: 3, body: 3, sound: 2, story: 2 }),
     causalS: 3,

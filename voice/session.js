@@ -106,7 +106,8 @@ const CLOSING_RETRY_ON = Object.freeze(FLOW.closing.retryOn ?? ['conversation_al
 export class VoiceSession {
   
   
-  constructor({ transport, act, say, bus = null, registry = STATIC_REGISTRY, onStatus = () => {}, scene = {}, setTimer = setTimeout, clearTimer = clearTimeout, now = Date.now, presence = null, phaseGate = null }) {
+  constructor({ transport, act, say, bus = null, registry = STATIC_REGISTRY, onStatus = () => {}, scene = {}, setTimer = setTimeout, clearTimer = clearTimeout, now = Date.now, presence = null, phaseGate = null, trace = null, callTrace = FLOW.callTrace || [] }) {
+    this.traceFn = typeof trace === 'function' ? trace : null; this.callTrace = callTrace; 
     Object.assign(this, { t: transport, act, say, bus, registry, onStatus, phaseSync: null, phase: FLOW.firstPhase, perResponse: new Map(), offs: [], ended: false,
       setTimer, clearTimer, now, pacer: null, pacedRids: new Set(), seenCalls: new Set(), activeRids: new Set(), closing: null });
     this.phaseGate = phaseGate || new PhaseGate({ now: () => this.now() }); 
@@ -139,7 +140,10 @@ export class VoiceSession {
   }
   
   voiceMode(mode) { if (this.ended || !FLOW.voiceModes?.[mode]) return false; this.t.send(audioUpdate(mode)); return true; }
-  #trace(rec) { try { this.bus?.emit?.('voice.trace', rec); } catch {} }
+  #trace(rec) {
+    try { this.bus?.emit?.('voice.trace', rec); } catch {}
+    if (this.traceFn && this.callTrace?.includes?.(rec.kind)) { const { kind, ...fields } = rec; try { this.traceFn(kind, { stage: 'session', ...fields }); } catch {} }
+  }
   
   
   
@@ -155,7 +159,7 @@ export class VoiceSession {
     if (!ok && !failed) return; 
     const rec = { kind: 'phase.mirror', phase: name, ok, status: obj ? r.status ?? null : null, ...(ok ? {} : { why: String((obj && r.why) || 'refused').slice(0, 80) }) };
     this.phaseSync = rec;
-    try { this.bus?.emit?.('voice.trace', rec); } catch {}
+    this.#trace(rec);
     if (!ok) this.onStatus({ state: 'phase-unsynced', phase: name, status: rec.status });
   }
   async stop(why = 'session stop') { this.ended = true; this.#clearClosing(); this.activeRids.clear(); this.pacer?.stop(); for (const off of this.offs) { try { off(); } catch {} } await this.t.close(why); }

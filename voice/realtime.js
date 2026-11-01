@@ -13,6 +13,7 @@ import { deviceId, fetchTicket } from './gate.js';
 import { WebRtcTransport, RelayWsTransport, connectWithFallback, createTrace, tracePath } from './transport.js';
 import { VoiceSession } from './session.js';
 import { registryFromDescribe } from './tools.js';
+import { FLOW } from './flow.js'; 
 import { definePcm16Worklet } from './pcm16-worklet.js';
 import { FrameFeed, FRAMES } from './frames.js';
 
@@ -82,11 +83,13 @@ const bytesToB64 = (buf) => { const u = new Uint8Array(buf); let s = ''; for (le
 
 
 export const ACTIVE_MAX_MS = 60000;
-export function continuationGate(t, { trace = null, now = Date.now, activeMaxMs = ACTIVE_MAX_MS } = {}) {
+
+
+export function continuationGate(t, { trace = null, now = Date.now, activeMaxMs = ACTIVE_MAX_MS, voidOn = FLOW.voidOn || [] } = {}) {
   const rs = new Map(), callRid = new Map(), active = new Map(), out = new Map(), answered = new Set(); 
   let afterOutput = false, closing = false, echo = false, seq = 0;
   const direct = t.kind !== 'relay-ws';
-  const rec = (rid) => { let r = rs.get(rid); if (!r) { r = { meta: null, seen: false, wait: [], calls: new Set(), outs: new Set(), audio: false, done: false, sent: false }; rs.set(rid, r); if (rs.size > 64) rs.delete(rs.keys().next().value); } return r; };
+  const rec = (rid) => { let r = rs.get(rid); if (!r) { r = { meta: null, seen: false, wait: [], calls: new Set(), outs: new Set(), audio: false, done: false, sent: false, voided: false }; rs.set(rid, r); if (rs.size > 64) rs.delete(rs.keys().next().value); } return r; };
   const note = (rid, why) => { try { trace?.push('continuation', { stage: 'gate', rid: String(rid).slice(0, 40), why }); } catch {} };
   
   const tag = (ev, act) => {
@@ -104,6 +107,7 @@ export function continuationGate(t, { trace = null, now = Date.now, activeMaxMs 
     if (closing || r.meta || !r.seen || !r.calls.size || r.audio) return; 
     if (r.outs.size < r.calls.size) return; 
     r.sent = true;
+    if (r.voided) return note(rid, 'skip: the person spoke after this turn began: void (D11)'); 
     if (!echo) return note(rid, 'skip: no echo seen: not provably the person\'s turn'); 
     if (r.wait.some((eid) => !answered.has(eid))) return note(rid, 'skip: a room create outstanding at its created is still unanswered: ambiguous');
     if (live()) return note(rid, 'skip: another response is active');
@@ -113,6 +117,9 @@ export function continuationGate(t, { trace = null, now = Date.now, activeMaxMs 
     : ev.type === 'response.output_item.done' && ev.item?.type === 'function_call' ? ev.item.call_id : null);
   const off = t.on('event', (ev) => {
     const rid = ev?.response?.id ?? ev?.response_id;
+    
+    
+    if (voidOn.includes(ev?.type)) { for (const r of rs.values()) if (r.seen && !r.sent) r.voided = true; return; }
     
     if (rid != null && ev.type !== 'response.created' && ev.type !== 'response.done' && !rs.get(rid)?.done) active.set(rid, now());
     switch (ev?.type) {
@@ -155,7 +162,16 @@ export function continuationGate(t, { trace = null, now = Date.now, activeMaxMs 
     get maxMessageSize() { return t.maxMessageSize ?? null; } };
   for (const k of ['setPhase', 'scene', 'item', 'deleteItems', 'appendAudio']) if (typeof t[k] === 'function') view[k] = (...a) => t[k](...a);
   if (typeof t.respond === 'function') view.respond = (response) => t.send(tag(response ? { type: 'response.create', response } : { type: 'response.create' }, 'room')); 
-  return { transport: view, closing: () => { closing = true; }, stop: () => { try { off(); } catch {} } };
+  return { transport: view, closing: () => { closing = true; }, stop: () => { closing = true; try { off(); } catch {} } }; 
+}
+
+
+
+export function frameHooks(s) {
+  const o = {};
+  if (typeof s?.itemSeq === 'function') o.seq = () => s.itemSeq();
+  if (typeof s?.onFrameBurst === 'function') o.onBurst = (b) => s.onFrameBurst(b);
+  return o;
 }
 
 function hasAudio(resp) {
@@ -248,6 +264,7 @@ export function mountVoice({ bus, chamber, getAudioCtx = () => null, config = {}
         
         gate = continuationGate(t, { trace, ...(cfg.now ? { now: cfg.now } : {}) }); 
         session = new VoiceSession({ transport: gate.transport, bus, registry, ...pick(cfg, ['setTimer', 'clearTimer', 'now']),
+          trace: (kind, fields) => trace.push(kind, fields), 
           ...(typeof chamber?.presence === 'function' ? { presence: chamber.presence } : {}),
           video: chamber?.video ?? null, viz: chamber?.viz ?? null,
           act: (verb, args, why, by) => chamber.act(verb, args, why, by), 
@@ -261,7 +278,8 @@ export function mountVoice({ bus, chamber, getAudioCtx = () => null, config = {}
       if (framesWanted(globalThis.location, fdef) && fdef.transports?.includes(t.kind) && chamber?.video) {
         try {
           frames = new FrameFeed({ send: (e) => t.send(e), sources: { camera: chamber.video, rendered: chamber.viewCanvas ?? null },
-            presence: chamber.presence ?? (() => false), maxMessageSize: () => t.maxMessageSize ?? null, trace });
+            presence: chamber.presence ?? (() => false), maxMessageSize: () => t.maxMessageSize ?? null, trace, ...frameHooks(session) });
+          if (typeof session?.attachFrames === 'function') session.attachFrames(frames); 
           t.on('event', (ev) => frames?.onEvent(ev)); 
         } catch (e) { warn('frames', e); frames = null; }
       }
