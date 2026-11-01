@@ -193,6 +193,9 @@ export function mountVoice({ bus, chamber, getAudioCtx = () => null, config = {}
   const device = deviceId();
   const state = { phase: 'ready', transport: null };
   let session = null, transport = null, frames = null, gate = null, mic = null, out = null, worklet = null, playAt = 0;
+  
+  
+  let run = 0;
   const setState = (s) => { Object.assign(state, s); bus?.emit?.('voice', { ...state }); };
   const trace = cfg.trace || createTrace(200); 
   const fetchImpl = cfg.fetchImpl || globalThis.fetch?.bind(globalThis);
@@ -239,10 +242,13 @@ export function mountVoice({ bus, chamber, getAudioCtx = () => null, config = {}
       setState({ phase: 'connecting', warn: null });
       trace.push('start', { stage: 'start' });
       const api = this;
+      const my = ++run; const ended = () => my !== run;
       
       let stage = 'getUserMedia';
       try {
-        mic = await (cfg.getUserMedia || ((c) => navigator.mediaDevices.getUserMedia(c)))({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
+        const m = await (cfg.getUserMedia || ((c) => navigator.mediaDevices.getUserMedia(c)))({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
+        if (ended()) { try { m?.getTracks().forEach((tr) => tr.stop()); } catch {} trace.push('start.cancelled', { stage }); return; } 
+        mic = m;
         stage = 'connect';
         const ticketOrigin = cfg.gatewayOrigin || cfg.relayOrigin.replace(/^ws/, 'http');
         const getTicket = async () => (await fetchTicket(ticketOrigin, device, { fetchImpl: tracedFetch })).ticket;
@@ -252,8 +258,11 @@ export function mountVoice({ bus, chamber, getAudioCtx = () => null, config = {}
         const fallback = cfg.relayOrigin ? new RelayWsTransport({ wsOrigin: cfg.relayOrigin, device, trace }) : null;
         primary?.on('remote-track', playRemote);
         fallback?.on('audio', playPcm16);
-        transport = await connectWithFallback({ getTicket, primary, fallback, onFallback: (e) => { trace.push('fallback', { stage: 'connect', msg: msgOf(e) }); setState({ fallbackWhy: e.message }); } });
+        const tc = await connectWithFallback({ getTicket, primary, fallback, onFallback: (e) => { trace.push('fallback', { stage: 'connect', msg: msgOf(e) }); setState({ fallbackWhy: e.message }); } });
+        if (ended()) { trace.push('start.cancelled', { stage }); await tc.close('ended while connecting'); return; } 
+        transport = tc;
       } catch (e) {
+        if (ended()) { trace.push('start.cancelled', { stage, msg: msgOf(e) }); return; } 
         trace.push('start.error', { stage, msg: msgOf(e), status: e?.status ?? null });
         await api.stop(`start failed at ${stage}`);
         setState({ phase: e?.status === 429 ? 'busy' : 'error', why: String(e?.status ?? e?.message ?? 'error').slice(0, 60) });
@@ -295,6 +304,7 @@ export function mountVoice({ bus, chamber, getAudioCtx = () => null, config = {}
     trace: () => trace.list(),
     traceText: () => trace.text(),
     async stop(why = 'stop') {
+      run++; 
       const s = session, t = transport; session = null; transport = null;
       try { frames?.stop(); } catch {} frames = null;
       try { gate?.stop(); } catch {} gate = null;

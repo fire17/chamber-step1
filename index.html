@@ -66,6 +66,17 @@
     </div>
   </div>
 
+  <!-- the person's End: one tap leaves the call, never asking the AI (MIND). Shown in every phase of a call (connecting, live,
+       closing), above every other layer; the text is the visible label, both languages (page labels only, never in FLOW). -->
+  <button id="end" type="button" aria-label="End · סיום" hidden>End · סיום</button>
+  <div id="ended" role="status" hidden>
+    <div class="card">
+      <h2 dir="rtl" lang="he" id="ended-he">השיחה הסתיימה</h2>
+      <p lang="en" id="ended-en">The call ended.</p>
+      <button id="again" type="button">Start again · התחל מחדש</button>
+    </div>
+  </div>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>

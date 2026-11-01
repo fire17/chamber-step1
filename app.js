@@ -217,6 +217,7 @@ async function startCamera() {
 
 
 let starting = false;
+let callEnded = false; 
 async function start() {
   if (starting) return; starting = true;
   $('start').disabled = true; $('splash').classList.add('waking');
@@ -231,9 +232,11 @@ async function start() {
     pad.phase({ name: bus.state.phase?.name, by: 'boot' }); 
     if (DEV_ROUTE) await audioCtx.suspend(); 
   } catch (e) { return showError('audio', e?.message || e); }
+  if (callEnded) return; 
   S.phase = 'starting';
   try { await startCamera(); } catch (e) { return showError(e.kind || 'nocam', `${e.name || ''} ${e.message || ''}`); }
   try { await modelReady; } catch (e) { return showError('model', e?.message || e); }
+  if (callEnded) { try { video.srcObject?.getTracks().forEach((tr) => tr.stop()); } catch {} return; } 
   $('splash').hidden = true;
   S.phase = 'running';
   aura?.start(); 
@@ -747,5 +750,29 @@ if (params.get('voice') !== '0') {
     
     
     if (voice) $('start').addEventListener('click', () => { voice.start().catch?.(() => {}); });
+    if (voice) mountEnd(voice);
   });
+}
+
+
+
+
+
+
+function mountEnd(voice) {
+  const btn = $('end'); let ended = false;
+  bus.on('voice', (v) => { if (!ended) btn.hidden = !(v?.phase === 'connecting' || v?.phase === 'live'); });
+  btn.onclick = () => {
+    if (ended) return; ended = true; callEnded = true;
+    btn.hidden = true; btn.disabled = true;
+    S.phase = 'ended'; 
+    try { if (voiceOut) voiceOut.gain.value = 0; } catch {}
+    try { audioCtx?.suspend(); } catch {}
+    try { aura?.stop(); } catch {}
+    $('resume').hidden = true; $('splash').hidden = true; $('ended').hidden = false;
+    $('again').focus?.();
+    voice.stop('person tapped End').catch?.(() => {});
+    try { video.srcObject?.getTracks().forEach((tr) => tr.stop()); } catch {} 
+  };
+  $('again').onclick = () => location.reload(); 
 }
